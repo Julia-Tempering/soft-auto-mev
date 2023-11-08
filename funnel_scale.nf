@@ -15,7 +15,7 @@ model_string = [
 
 sampler_string = [ 
     AM: "AutoMALA()",
-    AHMC: "SimpleAHMC(n_leaps = nleaps)",
+    AH_simple: "SimpleAHMC(n_leaps = nleaps)",
     NUTS: "Pigeons.MALA()", // ignored, just use it to compile
 ]
 
