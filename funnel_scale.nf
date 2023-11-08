@@ -5,7 +5,7 @@ def variables = [
     dim: (1..20).collect{0.2*it},
     seed: (1..20),
     model: ["funnel_scale"],
-    nleaps: (0..4).collect{1<<it}, // == 2^it but using bit shift
+    nleaps: (1..4).collect{1<<it}, // == 2^it but using bit shift
     sampler: ["AM","AH_simple","NUTS"] // MALA runs alongside autoMALA 
 ]
 
@@ -34,8 +34,8 @@ workflow {
 }
 
 process runSimulation {
-    memory {4.GB * task.attempt}
-    time { 1.hour * task.attempt }
+    memory {2.GB * task.attempt * (arg.sampler == "NUTS" ? 2 : 1)}
+    time { 2.hour * task.attempt}
     errorStrategy 'retry'
     maxRetries '3'
     input:
