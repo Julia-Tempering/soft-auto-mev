@@ -1,4 +1,4 @@
-include { crossProduct; collectCSVs; setupPigeons; head; pow; deliverables; checkGitUpdated; commit } from './utils.nf'
+include { crossProduct; collectCSVs; addDeployKey; setupPigeons; head; pow; deliverables; checkGitUpdated; commit } from './utils.nf'
 params.dryRun = false
 
 def variables = [
