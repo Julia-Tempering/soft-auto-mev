@@ -14,8 +14,8 @@ model_string = [
 ]
 
 sampler_string = [ 
-    AM: "AutoMALA()",
-    AH_simple: "SimpleAHMC(n_leaps = nleaps)",
+    AM: "AutoMALA(base_n_refresh=1)",
+    AH_simple: "SimpleAHMC(n_leaps = nleaps, base_n_refresh=1)",
     NUTS: "Pigeons.MALA()", // ignored, just use it to compile
 ]
 
@@ -35,7 +35,7 @@ workflow {
 
 process runSimulation {
     memory {2.GB * task.attempt * (arg.sampler == "NUTS" ? 2 : 1)}
-    time { 2.hour * task.attempt}
+    time { 1.hour * task.attempt}
     errorStrategy 'retry'
     maxRetries '3'
     input:
