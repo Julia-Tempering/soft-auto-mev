@@ -83,6 +83,7 @@ process addDeployKey {
     # if inside apptainer start ssh-agent then add key
     if [ -v APPTAINER_NAME ] ; then
       echo "initializing ssh agent and adding deploy key"
+      chmod 600 keys/id_ed25519
       eval `ssh-agent -s`
       ssh-add $baseDir/keys/id_ed25519
     fi
