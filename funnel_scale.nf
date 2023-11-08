@@ -28,8 +28,7 @@ def deliv = deliverables(workflow)
 workflow {
     args = crossProduct(variables, params.dryRun)
         .filter { it.sampler.startsWith("AH") || it.nleaps == 1 } // nleaps only relevant to AHMC
-    julia_env_path = addDeployKey(julia_env_dir)
-    julia_env = setupPigeons(julia_depot_dir, julia_env_path)
+    julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs 
     //commit(agg_path, params.dryRun) // cannot commit from container, priv keys not available
 }
