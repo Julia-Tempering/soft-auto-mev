@@ -8,4 +8,4 @@ else
     export CLUSTER_OPTIONS="--account=st-alexbou-1"
 fi
 
-./nextflow $@ -profile sockeye
+./nextflow $@ -profile cluster
