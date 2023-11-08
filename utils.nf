@@ -70,12 +70,30 @@ process collectCSVsProcess {
 
 ////
 
+process addDeployKey {
+    debug true
+    executor 'local'
+    scratch false
+    time '5m'
+    input:
+        path julia_env
+    output:
+        path julia_env
+    """
+    # if inside apptainer start ssh-agent then add key
+    if [ -v APPTAINER_NAME ] ; then
+      echo "initializing ssh agent and adding deploy key"
+      eval `ssh-agent -s`
+      ssh-add $baseDir/keys/id_ed25519
+    fi
+    """
+}
+
 process setupPigeons {
     debug true
     executor 'local'
     scratch false
     time { 2.h * Math.pow(2, task.attempt-1) }
-    memory { 4.GB * Math.pow(2, task.attempt-1) }
     errorStrategy 'retry'
     maxRetries '4'
     input:
