@@ -5,8 +5,8 @@ def variables = [
     dim: (1..20).collect{0.2*it},
     seed: (1..20),
     model: ["funnel_scale"],
-    nleaps: (1..4).collect{1<<it}, // == 2^it but using bit shift
-    sampler: ["AM","AH_simple","NUTS"] // MALA runs alongside autoMALA 
+    nleaps: (10..40).step(10), // collect{1<<it}, // == 2^it but using bit shift
+    sampler: ["AM","AH_simple","NUTS"]
 ]
 
 model_string = [
@@ -27,15 +27,16 @@ def deliv = deliverables(workflow)
 
 workflow {
     args = crossProduct(variables, params.dryRun)
-        .filter { it.sampler.startsWith("AH") || it.nleaps == 2 } // nleaps only relevant to AHMC
+        .filter { it.sampler.startsWith("AH") || it.nleaps == variables.nleaps.first() } // nleaps only relevant to AHMC
+    	//.collect()
+    	//.view()    
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
-    agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs 
-    //commit(agg_path, params.dryRun) // cannot commit from container, priv keys not available
+    agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
 }
 
 process runSimulation {
     memory {2.GB * task.attempt * (arg.sampler == "NUTS" ? 2 : 1)}
-    time { 1.hour * task.attempt}
+    time { 2.hour * task.attempt }
     errorStrategy 'retry'
     maxRetries '3'
     input:
