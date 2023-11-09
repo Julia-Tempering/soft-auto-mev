@@ -16,7 +16,6 @@ using StatsPlots
 
 using Pigeons
 using autoHMC
-import Pigeons: initialization, sample_iid!
 
 ###############################################################################
 # ESS and friends
@@ -323,12 +322,18 @@ end
 ###############################################################################
 
 # Boxplots
-const COLORBLIND_4 = [colorant"#785EF0", colorant"#DC267F", colorant"#FE6100", colorant"#FFB000"] # colorant"#648FFF" 
+const JULIA_AUTO = theme_palette(:auto).colors.colors
+const COLORBLIND_IBM = [colorant"#785EF0", colorant"#DC267F", colorant"#FE6100", colorant"#FFB000", colorant"#648FFF"] # IBM palette from https://davidmathlogic.com/colorblind/
+const COLORBLIND_WONG = [
+    colorant"#000000", colorant"#E69F00", colorant"#56B4E9", colorant"#009E73", 
+    colorant"#F0E442", colorant"#0072B2", colorant"#D55E00", colorant"#CC79A7"] # Wong palette from https://davidmathlogic.com/colorblind/
+get_palette(n_levels::Int) = 
+    ((n_levels <= 2 || n_levels > 8) ? JULIA_AUTO : n_levels <= 5 ? COLORBLIND_IBM : COLORBLIND_WONG)[1:n_levels]
 dataset_nickname(d::AbstractString) = d=="sonar" ? "Sonar" : (d=="prostate_small" ? "Prostate" : "Ion.")
 function make_boxplots(df::DataFrame; fn_end = ".pdf")
     n_samplers = length(unique(df.sampler))
     only_two_samplers = n_samplers == 2
-    colors = 2 < n_samplers <= 4 ? COLORBLIND_4 : :auto
+    colors = get_palette(n_samplers)
 
     # preprocessing
     sort!(df)

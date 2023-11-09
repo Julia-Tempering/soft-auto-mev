@@ -35,7 +35,7 @@ workflow {
 }
 
 process runSimulation {
-    memory {2.GB * task.attempt * (arg.sampler == "NUTS" ? 2 : 1)}
+    memory { 4.5GB * task.attempt }
     time { 2.hour * task.attempt }
     errorStrategy 'retry'
     maxRetries '3'

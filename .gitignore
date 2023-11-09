@@ -15,4 +15,5 @@ replay_pid*
 test.jl
 test.nf
 test.sh
+*.pdf
 
