@@ -10,11 +10,12 @@ using StanSample
 using HypothesisTests
 using Distributions 
 using Statistics
-include(joinpath("$baseDir", "$julia_env", "src", "AM_scaling_utils.jl"))
+include(joinpath("$baseDir", "$julia_env", "src", "utils.jl"))
 
 function main()
 	# collect global vars 
 	scale = $scale
+        nleaps = ${arg.nleaps}
 	explorer_type = "${arg.sampler}"
 	explorer = ${sampler_string[arg.sampler]}
 	dim = ${arg.dim}
