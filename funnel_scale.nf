@@ -45,6 +45,6 @@ process runSimulation {
     output:
         tuple val(arg), path('csvs')
   script:
-    template 'AM_scale_main.jl'
+    template 'scale_main.jl'
 }
 

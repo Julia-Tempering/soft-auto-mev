@@ -273,37 +273,14 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     end 
 end 
 
-function AM_normal_574_plot(df,mode="") 
-    sort!(df, :dim) 
-    seeds = vcat(unique(df.seed), :mean)
-    p = Plots.plot()
-    for seed in seeds
-        df_subset = copy(df)
-        if seed != :mean 
-            df_subset = filter(:seed => n -> n == seed, df_subset)
-        end
-        seed != :mean ? alpha = 0.25 : alpha = 1.0
-        if seed == :mean 
-            df_subset = groupby(df_subset, :dim) # group by dim and take average across seeds
-            df_subset = combine(df_subset, :acceptance => mean, renamecols = false)
-        end
-        Plots.plot!( 
-            p, df_subset.dim, df_subset.acceptance, 
-            xlabel = "Dimension", ylabel = "MH acceptance probability", 
-            xaxis = :log10, alpha = alpha, lc = 1, label = (seed == :mean) ? "autoMALA" : "", 
-            color = 1, seriestype = seed == :mean ? :line : :scatter,
-            ylims = (0, 1)
-        )
-    end
-    Plots.hline!(p, [0.574], lc = 3, label = "Theoretical optimal value") # optimal MALA acceptance probability 
-    path = joinpath(
-        base_dir(), "deliverables", "AM_normal_574" * mode, "AM-normal-574-acceptance.pdf") 
-    savefig(p, path)
+# Two component normal for testing preconditioner
+function make_2_comp_norm_target(n, exponent)
+    s_lo, s_hi = two_component_normal_stdevs(exponent)
+    json_str = Pigeons.json(; n=n, s_lo=s_lo, s_hi=s_hi)
+    StanLogPotential(joinpath(
+        base_dir(), "stan", "two_component_normal.stan"
+    ), json_str)
 end
-
-###############################################################################
-# sampling from models for real data
-###############################################################################
 
 # build the horseshoe prior target with varying number of observations
 load_HSP_df(dataset::String) = 
@@ -341,17 +318,17 @@ function make_HSP_target(dataset::String, n_obs::Int=typemax(Int))
     ), json_str)
 end
 
+###############################################################################
+# plotting utilities
+###############################################################################
+
 # Boxplots
-const DEFAULT_COLORBLIND_PALETTE = [colorant"#785EF0", colorant"#DC267F", colorant"#FE6100", colorant"#FFB000"] # colorant"#648FFF" 
+const COLORBLIND_4 = [colorant"#785EF0", colorant"#DC267F", colorant"#FE6100", colorant"#FFB000"] # colorant"#648FFF" 
 dataset_nickname(d::AbstractString) = d=="sonar" ? "Sonar" : (d=="prostate_small" ? "Prostate" : "Ion.")
 function make_boxplots(df::DataFrame; fn_end = ".pdf")
-    only_two_samplers = length(unique(df.sampler)) == 2
-    colors = only_two_samplers ? :auto : DEFAULT_COLORBLIND_PALETTE
-    if !only_two_samplers # use better descriptors for various automalas
-        map!(df[!,:sampler],df[!,:sampler]) do s
-            s == "autoMALA" ? "AM smooth" : (s == "autoMALA_fixed" ? "AM single" : (s == "mix_autoMALA" ? "AM mixture" : s))
-        end
-    end
+    n_samplers = length(unique(df.sampler))
+    only_two_samplers = n_samplers == 2
+    colors = 2 < n_samplers <= 4 ? COLORBLIND_4 : :auto
 
     # preprocessing
     sort!(df)
@@ -386,7 +363,7 @@ function make_boxplots(df::DataFrame; fn_end = ".pdf")
     size   = (650,300)
     xlab   = is_hsp ? "Dataset" : "Inverse scale" * (is_banana ? " (log₂)" : "")
     mar    = 15px
-    path   = joinpath(base_dir(), "deliverables", "AM_" * model)
+    path   = joinpath(base_dir(), "deliverables", model)
     n_samplers = length(unique(df.sampler))
 
     # plots for known margins
@@ -561,11 +538,4 @@ function make_boxplots(df::DataFrame; fn_end = ".pdf")
     savefig(p,joinpath(path, "boxplots-nleap_to_min_ess" * fn_end))
 end
 
-# Two component normal for testing preconditioner
-function make_2_comp_norm_target(n, exponent)
-    s_lo, s_hi = two_component_normal_stdevs(exponent)
-    json_str = Pigeons.json(; n=n, s_lo=s_lo, s_hi=s_hi)
-    StanLogPotential(joinpath(
-        base_dir(), "stan", "two_component_normal.stan"
-    ), json_str)
-end
+

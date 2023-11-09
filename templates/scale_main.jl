@@ -1,7 +1,7 @@
 #!/usr/bin/env -S julia --heap-size-hint=${task.memory.toGiga()}G
 using Pkg
 Pkg.activate(joinpath("$baseDir", "$julia_env")) 
-include(joinpath("$baseDir", "$julia_env", "src", "AM_scaling_utils.jl")) # loads dependencies too
+include(joinpath("$baseDir", "$julia_env", "src", "utils.jl")) # loads dependencies too
 
 function main()
 	# collect global vars 
@@ -13,7 +13,7 @@ function main()
 	model = "${arg.model}"
 	seed = ${arg.seed}
 	n_rounds = ${n_rounds}
-	model == "funnel_scale" && occursin("autoMALA", explorer_type) && (n_rounds -= 1) # equalize efforts
+	#model == "funnel_scale" && occursin("autoMALA", explorer_type) && (n_rounds -= 1) # equalize efforts
 
 	if explorer_type != "NUTS" # use Pigeons 
 	    (explorer_type != "PT") ? (n_chains = 1) : n_chains = $PT_n_chains
