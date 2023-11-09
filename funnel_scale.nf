@@ -5,7 +5,7 @@ def variables = [
     dim: (1..20).collect{0.2*it},
     seed: (1..20),
     model: ["funnel_scale"],
-    nleaps: (10..40).step(10), // collect{1<<it}, // == 2^it but using bit shift
+    nleaps: (10..30).step(10), // collect{1<<it}, // == 2^it but using bit shift
     sampler: ["AM","AH_simple","NUTS"]
 ]
 
