@@ -36,15 +36,16 @@ workflow {
 
 process runSimulation {
     // linearly scale mem with dim*(total number of samples when doing n_rounds = 2^(n_rounds+1)-2 ~ 2^(n_rounds+1))
-    // reference is 6G for 128 dim and 18 rounds for NUTS, half for julia
+    // reference is 5G for 1024 dim and 18 rounds for AH_simple
+    // NUTS uses roughly 8 times more mem 
     memory { 1.GB * Math.round(
         Math.min(92.0,     // smallest machines on beluga
             Math.max(2.0,   // ~ fixed mem cost
-                3.0 * (arg.sampler=="NUTS" ? 2 : 1) * task.attempt * arg.dim * Math.pow(2,n_rounds+1)  / (128.0 * 524288)
+                5.0 * (arg.sampler=="NUTS" ? 8 : 1) * task.attempt * arg.dim * Math.pow(2,n_rounds+1)  / (1024.0 * 524288)
             )
         )
     ) }
-    time { 30.min * task.attempt }
+    time { 2.hour * task.attempt }
     errorStrategy 'retry'
     maxRetries '1'
     input:
