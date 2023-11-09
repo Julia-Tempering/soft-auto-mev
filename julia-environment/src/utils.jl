@@ -338,8 +338,8 @@ function make_boxplots(df::DataFrame; model = first(df.model), fn_end = ".pdf")
     # preprocessing
     sort!(df)
     is_funnel = occursin("funnel",model)
-    is_banana= occursin("banana",model)
     is_highdim = occursin("highdim",model)
+    is_banana = !is_highdim && occursin("banana",model) # check if its banana_scale
     is_log2_x = is_banana || is_highdim
     is_log2_x && (df.dim .= log2.(df.dim)) # boxplot not working with xaxis=:log 
     is_hsp = occursin("horseshoe",model) && hasproperty(df, :dataset)
