@@ -330,17 +330,18 @@ const COLORBLIND_WONG = [
 get_palette(n_levels::Int) = 
     ((n_levels <= 2 || n_levels > 8) ? JULIA_AUTO : n_levels <= 5 ? COLORBLIND_IBM : COLORBLIND_WONG)[1:n_levels]
 dataset_nickname(d::AbstractString) = d=="sonar" ? "Sonar" : (d=="prostate_small" ? "Prostate" : "Ion.")
-function make_boxplots(df::DataFrame; fn_end = ".pdf")
+function make_boxplots(df::DataFrame; model = first(df.model), fn_end = ".pdf")
     n_samplers = length(unique(df.sampler))
     only_two_samplers = n_samplers == 2
     colors = get_palette(n_samplers)
 
     # preprocessing
     sort!(df)
-    model = first(df.model)
     is_funnel = occursin("funnel",model)
     is_banana= occursin("banana",model)
-    is_banana && (df.dim .= log2.(df.dim)) # boxplot not working with xaxis=:log 
+    is_highdim = occursin("highdim",model)
+    is_log2_x = is_banana || is_highdim
+    is_log2_x && (df.dim .= log2.(df.dim)) # boxplot not working with xaxis=:log 
     is_hsp = occursin("horseshoe",model) && hasproperty(df, :dataset)
     is_2_comp_norm = occursin("two_component_normal",model)
     xvar = :dim
@@ -366,7 +367,7 @@ function make_boxplots(df::DataFrame; fn_end = ".pdf")
 
     # common properties
     size   = (650,300)
-    xlab   = is_hsp ? "Dataset" : "Inverse scale" * (is_banana ? " (log₂)" : "")
+    xlab   = is_hsp ? "Dataset" : (is_highdim ? "Dimension" : "Inverse scale") * (is_log2_x ? " (log₂)" : "")
     mar    = 15px
     path   = joinpath(base_dir(), "deliverables", model)
     n_samplers = length(unique(df.sampler))
