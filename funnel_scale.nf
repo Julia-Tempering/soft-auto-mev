@@ -5,8 +5,8 @@ def variables = [
     dim: (1..20).collect{0.2*it},
     seed: (1..20),
     model: ["funnel_scale"],
-    nleaps: (10..30).step(10), // collect{1<<it}, // == 2^it but using bit shift
-    sampler: ["AM","AH_simple","NUTS"]
+    nleaps: [1],// currently not used // (10..30).step(10), // collect{1<<it}, // == 2^it but using bit shift
+    sampler: ["AM","AH_fix", "AH_unif", "AH_exp","NUTS"]
 ]
 
 model_string = [
@@ -15,11 +15,13 @@ model_string = [
 
 sampler_string = [ 
     AM: "AutoMALA(base_n_refresh=1)",
-    AH_simple: "SimpleAHMC(n_leaps = nleaps, base_n_refresh=1)",
+    AH_fix: "SimpleAHMC()", // base_n_refresh=1 by default on pkg autoHMC. also jitter = Dirac(1.0)
+    AH_unif: "SimpleAHMC(jitter_n_leaps=Uniform(0.,2.))",
+    AH_exp: "SimpleAHMC(jitter_n_leaps=Exponential(1.))",
     NUTS: "Pigeons.MALA()", // ignored, just use it to compile
 ]
 
-n_rounds = params.dryRun ? 4 : 20 
+n_rounds = params.dryRun ? 4 : 20
 PT_n_chains = 10
 def julia_env_dir = file("julia-environment")
 def julia_depot_dir = file(".depot")
@@ -35,10 +37,10 @@ workflow {
 }
 
 process runSimulation {
-    memory { 4.5GB * task.attempt }
+    memory { 5.GB * task.attempt }
     time { 2.hour * task.attempt }
     errorStrategy 'retry'
-    maxRetries '3'
+    maxRetries '1'
     input:
         env JULIA_DEPOT_PATH
         path julia_env
