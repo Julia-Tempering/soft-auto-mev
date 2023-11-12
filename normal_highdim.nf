@@ -6,7 +6,7 @@ def variables = [
     seed: (1..20),
     model: ["normal"],
     nleaps: [1],// currently not used// (10..30).step(10),
-    sampler: ["AM","AH_fix", "AH_unif", "AH_exp","NUTS"]
+    sampler: ["AM", "AH_fix", "AH_unif", "AH_exp", "NUTS"]
 ]
 
 model_string = [
@@ -38,14 +38,15 @@ workflow {
 
 process runSimulation {
     // linearly scale mem with dim*(total number of samples when doing n_rounds = 2^(n_rounds+1)-2 ~ 2^(n_rounds+1))
-    // for some reason NUTS uses roughly 10 times more mem 
+    // for some reason NUTS uses roughly 10 times more mem than theoretically needed
+    // 2x safety factor for our samplers
     memory { 2.GB +            // ~ fixed mem cost
         1.GB * Math.round(
             Math.min(90.0,     // smallest machines on beluga has 92G=90 + 2fixed
-                task.attempt * (arg.sampler=="NUTS" ? 10 : 1) * arg.dim * 
+                task.attempt * (arg.sampler=="NUTS" ? 10 : 2) * arg.dim * 
                 Math.pow(2.0, n_rounds+1.0 + 3.0 - 30.0) // (nrounds+1) + (log_2(bytes per float)) - log_2(bytes per gigabyte)
             )
-        ) 
+        )
     }
     time { 2.hour * task.attempt }
     errorStrategy 'retry'

@@ -15,6 +15,14 @@ using StanSample
 using StatsPlots
 
 using Pigeons
+
+# check if autoHMC is installed
+# this is only necessary when utils.jl is called outside of our nextflow scripts
+using Pkg
+isnothing(Base.locate_package(Base.PkgId("771ff56b-3556-409a-939e-7967008010d3"))) &&
+    Pkg.add(
+        url="git@github.com:Julia-Tempering/autoHMC.git", rev="main"
+    )
 using autoHMC
 
 ###############################################################################
