@@ -15,7 +15,13 @@ using StanSample
 using StatsPlots
 
 using Pigeons
-using autoHMC
+try
+    using autoHMC
+catch
+    using Pkg
+    Pkg.instantiate()
+    Pkg.precompile()
+end
 
 ###############################################################################
 # ESS and friends
