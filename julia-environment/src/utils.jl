@@ -104,6 +104,7 @@ function pt_sample_from_model(
     pt_sample_from_model(inp, args...; kwargs...)
 end
 
+# TODO: make this double until we get enough minESS
 function pt_sample_from_model(inp::Inputs, n_rounds; keep_traces=true)
     # build pt
     recorders = [record_default(); Pigeons.explorer_acceptance_pr] 
@@ -125,9 +126,10 @@ function pt_sample_from_model(inp::Inputs, n_rounds; keep_traces=true)
     else 
         sample = nothing 
     end
-    return pt, time, sample, n_leapfrog
+    return time, sample, n_leapfrog
 end
 
+# TODO: make this double until we get enough minESS
 function nuts_sample_from_model(model, seed, n_rounds; kwargs...)
     stan_model = model_string(model; kwargs...)
     sm = SampleModel(model, stan_model) 

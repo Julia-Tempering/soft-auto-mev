@@ -5,7 +5,5 @@ if [[ -z "${ALLOC_NAME}" ]]; then
   exit 1
 fi
 
-# explicit number of nodes needed since Nov-23
-export CLUSTER_OPTIONS="--nodes=1 --account=$ALLOC_NAME"
-echo "Using CLUSTER_OPTIONS=$CLUSTER_OPTIONS"
-./nextflow $@ -profile cluster
+export CLUSTER_OPTIONS="--account=$ALLOC_NAME"
+NXF_OPTS="-Xms500M -Xmx3G" ./nextflow $@ -profile cluster
