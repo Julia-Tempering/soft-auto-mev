@@ -1,32 +1,36 @@
 #!/bin/bash
 
-# if insider the apptainer container, start ssh agent and add key
+# if inside the apptainer container, start ssh agent and add keys
 if [ -v APPTAINER_NAME ] ; then
-    echo "initializing ssh agent and adding deploy key"
-    chmod 600 $baseDir/keys/id_ed25519
+    echo "initializing ssh agent and adding deploy keys"
+    chmod 600 $baseDir/keys/id_autoHMC
+    chmod 600 $baseDir/keys/id_autoRWMH
     eval `ssh-agent -s`
-    ssh-add $baseDir/keys/id_ed25519
+    ssh-add $baseDir/keys/id_autoHMC
+    ssh-add $baseDir/keys/id_autoRWMH
 fi
 
-# need to do this here so that nextflow can fill in julia_env and baseDir
+# Create Julia script that activates the julia environment and adds latest dev
+# versions of our packages.
+# NB: need to do this here so that nextflow can fill in julia_env and baseDir
 # also, cannot run the jl script in another process because then the container is reloaded
 # so the ssh setup disappears
 cat <<EOF > temp.jl
     using Pkg
     Pkg.activate("$julia_env")
-    Pkg.add([                  # need to install them jointly otherwise complains autoHMC is not reg
+    Pkg.add([ # need to install them jointly otherwise Julia complains autoHMC/autoRWMH are not registered
         Pkg.PackageSpec(name="Pigeons", rev="main"),
         Pkg.PackageSpec(url="git@github.com:Julia-Tempering/autoHMC.git", rev="main")
+        Pkg.PackageSpec(url="git@github.com:Julia-Tempering/autoRWMH.git", rev="main")
     ])
     Pkg.instantiate()
     Pkg.precompile()
 
-    # force download of BridgeStan artifact because it uses LazyArtifact
+    # force download of stan by loading BridgeStan here
     # no other package uses this approach
     # also, need to precompile stan models to avoid race conditions since the
     # .o and .so files are stored in a shared location (pigeons examples folder)
-    using BridgeStan
-    using Pigeons
+    using BridgeStan, Pigeons
     Pigeons.toy_stan_target(1)
     Pigeons.stan_funnel(1)
     Pigeons.stan_banana(1)
@@ -40,5 +44,6 @@ cat <<EOF > temp.jl
     )
 EOF
 
+# Run the Julia script
 julia temp.jl
 
