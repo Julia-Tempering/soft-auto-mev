@@ -16,7 +16,7 @@ using StatsPlots
 
 using Pigeons
 try
-    using autoHMC
+    using autoHMC, autoRWMH
 catch
     using Pkg
     Pkg.instantiate()
@@ -24,25 +24,14 @@ catch
 end
 
 ###############################################################################
-# ESS and friends
+# utils for processing samples
 ###############################################################################
 
-include("batch_means.jl")
-
-const PigeonsSample = Union{Pigeons.SampleArray{<:AbstractVector}, Vector{<:AbstractVector}}
-
-get_component_samples(samples::PigeonsSample, idx_component) =
-    collect(hcat((s[idx_component] for s in samples)...)')
-get_component_samples(samples::PigeonsSample, idx_component::Int) =
+get_component_samples(samples::AbstractVector, idx_component::Int) =
     [s[idx_component] for s in samples]
 get_component_samples(samples::DataFrame, idx_component) = Array(samples[:,idx_component])
 
-# ESS
-function margin_ess(samples, model_exact_means=nothing, margin_idx=1, args...)
-    margin = get_component_samples(samples,margin_idx)
-    isnothing(model_exact_means) && return batch_means_ess(margin)
-    batch_means_ess(margin, special_margin_mean_std(model_exact_means, args...)...) 
-end
+
 special_margin_idx(model::AbstractString, dim::Int) = 
     startswith(model, "two_component_normal") ? dim : one(dim)
 
@@ -61,63 +50,11 @@ special_margin_mean_std(model::String, args...) =
         error("unknown model $model")
     end
 two_component_normal_stdevs(e::Real,args...) = (10. ^(-e), 10. ^(e))
-n_vars(samples::PigeonsSample) = length(first(samples))
+n_vars(samples::AbstractVector) = length(first(samples))
 n_vars(samples::DataFrame) = size(samples,2)
-min_ess_batch(samples) = minimum(1:n_vars(samples)) do i
-        batch_means_ess(get_component_samples(samples, i))
-    end
-to_chains(samples::PigeonsSample) = Chains(samples)
+
+to_chains(samples::AbstractVector) = Chains(samples)
 to_chains(samples::DataFrame) = Chains(Array(samples))
-min_ess_chains(samples) = minimum(ess(to_chains(samples),kind=:basic).nt.ess) # :basic is actual ess of the vars. default is :bulk which computes ess on rank-normalized vars
-
-# TODO: should we discard the warmup samples?
-function MSJD(sample::PigeonsSample) 
-    n = length(sample) 
-    msjd = 0.0
-    for i in 2:n 
-       msjd += sum((sample[i] .- sample[i-1]) .^ 2) / (n-1)
-    end 
-    return msjd
-end 
-
-function MSJD(sample::DataFrame) 
-    sample_vec = df_to_vec(sample) 
-    return MSJD(sample_vec) 
-end 
-
-function Statistics.mean(sample::PigeonsSample, margin)
-    x = [sample[i][margin] for i in eachindex(sample)]
-    return mean(x) 
-end
-
-function Statistics.mean(sample::DataFrame, margin)
-    sample_vec = df_to_vec(sample)
-    return mean(sample_vec, margin)
-end
-
-function Statistics.var(sample::PigeonsSample, margin)
-    x = [sample[i][margin] for i in eachindex(sample)]
-    return var(x) 
-end
-
-function Statistics.var(sample::DataFrame, margin)
-    sample_vec = df_to_vec(sample)
-    return var(sample_vec, margin)
-end
-
-#=
-Kolmogorov-Smirnov test.  
-=#
-function KS_statistic(sample::PigeonsSample, d::Distribution, margin = 1)
-    x = [sample[i][margin] for i in 1:length(sample)]
-    t = HypothesisTests.ApproximateOneSampleKSTest(x, d)
-    return sqrt(t.n)*t.δ, pvalue(t) 
-end 
-
-function KS_statistic(sample::DataFrame, d::Distribution, margin = 1) 
-    sample_vec = df_to_vec(sample) 
-    return KS_statistic(sample_vec, d, margin) 
-end
 
 function df_to_vec(df::DataFrame) 
     n = size(df,1)
@@ -127,6 +64,26 @@ function df_to_vec(df::DataFrame)
     end 
     return df_vec
 end 
+
+###############################################################################
+# ESS and friends
+###############################################################################
+
+include("batch_means.jl")
+
+function margin_ess(samples, model_exact_means=nothing, margin_idx=1, args...)
+    margin = get_component_samples(samples,margin_idx)
+    isnothing(model_exact_means) && return batch_means_ess(margin)
+    batch_means_ess(margin, special_margin_mean_std(model_exact_means, args...)...) 
+end
+
+# minimum ess using batch means
+min_ess_batch(samples) = minimum(1:n_vars(samples)) do i
+    batch_means_ess(get_component_samples(samples, i))
+end
+
+# minimum ess using the MCMCChains approach (which is based on Stan's)
+min_ess_chains(samples) = minimum(ess(to_chains(samples),kind=:basic).nt.ess) # :basic is actual ess of the vars. default is :bulk which computes ess on rank-normalized vars
 
 ###############################################################################
 # sampling

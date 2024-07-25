@@ -1,11 +1,16 @@
 #!/bin/bash
 
-module load git apptainer
+# explicit number of nodes needed since Nov-23
+cl_ops="--nodes=1 --account"
 
-if [[ "$USER" == "mbironla" ]]; then
-    export CLUSTER_OPTIONS="--account=st-tdjc-1"
+# decide alloc code based on user names
+if [[ "$USER" == @("tgliu"|"mbironla") ]]; then
+    cl_ops="$cl_ops=st-tdjc-1"
 else
-    export CLUSTER_OPTIONS="--account=st-alexbou-1"
+    cl_ops="$cl_ops=st-alexbou-1"
 fi
 
+export CLUSTER_OPTIONS="$cl_ops"
+echo "Using CLUSTER_OPTIONS=$CLUSTER_OPTIONS"
 ./nextflow $@ -profile cluster
+
