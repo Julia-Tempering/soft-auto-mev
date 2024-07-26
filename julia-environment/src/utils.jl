@@ -3,7 +3,6 @@ using CSV
 using DataFrames
 using Dates
 using Distributions
-using HypothesisTests
 using MCMCChains
 using BridgeStan
 using Plots
@@ -15,13 +14,8 @@ using StanSample
 using StatsPlots
 
 using Pigeons
-try
-    using autoHMC, autoRWMH
-catch
-    using Pkg
-    Pkg.instantiate()
-    Pkg.precompile()
-end
+using autoHMC
+using autoRWMH
 
 ###############################################################################
 # utils for processing samples
@@ -89,44 +83,31 @@ min_ess_chains(samples) = minimum(ess(to_chains(samples),kind=:basic).nt.ess) # 
 # sampling
 ###############################################################################
 
-function pt_sample_from_model(
-    target, seed, explorer, explorer_type, args...;
-    n_chains = 1, kwargs...
-    )
-    inp = Inputs(
+function pt_sample_from_model(target, seed, explorer, miness_threshold)
+    n_rounds = ceil(Int, log2(10*miness_threshold)) # assume ESS/n_samples = 10%
+    pt = PT(Inputs(
         target      = target, 
         seed        = seed,
-        n_rounds    = 1,
-        n_chains    = n_chains, 
+        n_rounds    = n_rounds,
+        n_chains    = 1, 
+        record      = [record_default(); Pigeons.explorer_acceptance_pr; Pigeons.traces; Pigeons.reversibility_rate],
         explorer    = explorer, 
         show_report = true
-    )
-    pt_sample_from_model(inp, args...; kwargs...)
-end
+    ))
 
-# TODO: make this double until we get enough minESS
-function pt_sample_from_model(inp::Inputs, n_rounds; keep_traces=true)
-    # build pt
-    recorders = [record_default(); Pigeons.explorer_acceptance_pr] 
-    keep_traces && (recorders = vcat(recorders, Pigeons.traces))
-    inp.record = recorders
-    pt = PT(inp)
-
-    # iterate rounds
-    n_leapfrog = 0
-    for _ in 1:n_rounds
+    # run until minimum minESS threshold is breached
+    n_steps = 0
+    miness = 0.0
+    time = @elapsed while n_rounds < 18 # bail after this point
         pt = pigeons(pt)
-        n_leapfrog += Pigeons.explorer_n_steps(pt)[1]
+        n_steps += first(Pigeons.explorer_n_steps(pt))
+        samples = get_sample(pt) # compute summaries of last round (0.5 of all samples)
+        miness = min(min_ess_chains(samples),min_ess_batch(samples))
+        miness > miness_threshold && break    
         pt = Pigeons.increment_n_rounds!(pt, 1)
+        n_rounds += 1 
     end
-    time   = sum(pt.shared.reports.summary.last_round_max_time)
-    if keep_traces 
-        sample = get_sample(pt) # compute summaries of last round (0.5 of all samples)
-        @assert length(sample) == 2^n_rounds
-    else 
-        sample = nothing 
-    end
-    return time, sample, n_leapfrog
+    return time, samples, n_steps, miness
 end
 
 # TODO: make this double until we get enough minESS
