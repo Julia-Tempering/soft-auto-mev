@@ -18,6 +18,22 @@ using autoHMC
 using autoRWMH
 
 ###############################################################################
+# loading data
+###############################################################################
+
+function base_dir()
+    base_folder = dirname(dirname(Base.active_project()))
+    endswith(base_folder, "autoHMC-mev") || error("please activate the autoHMC-mev julia-environment")
+    return base_folder
+end
+
+function get_summary_df(experiment::String)
+    base_folder = base_dir()
+    csv_path    = joinpath(base_folder, "deliverables", experiment, "aggregated", "summary.csv")
+    return DataFrame(CSV.File(csv_path))
+end
+
+###############################################################################
 # utils for processing samples
 ###############################################################################
 
@@ -79,12 +95,19 @@ end
 # minimum ess using the MCMCChains approach (which is based on Stan's)
 min_ess_chains(samples) = minimum(ess(to_chains(samples),kind=:basic).nt.ess) # :basic is actual ess of the vars. default is :bulk which computes ess on rank-normalized vars
 
+# minimum over dimensions and methods
+min_ess_all_methods(samples) = min(min_ess_chains(samples), min_ess_batch(samples))
+
 ###############################################################################
 # sampling
 ###############################################################################
 
+#######################################
+# pigeons
+#######################################
+
 function pt_sample_from_model(target, seed, explorer, miness_threshold)
-    n_rounds = ceil(Int, log2(10*miness_threshold)) # assume ESS/n_samples = 10%
+    n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     pt = PT(Inputs(
         target      = target, 
         seed        = seed,
@@ -95,67 +118,63 @@ function pt_sample_from_model(target, seed, explorer, miness_threshold)
         show_report = true
     ))
 
-    # run until minimum minESS threshold is breached
+    # run until minESS threshold is breached
     n_steps = 0
     miness = 0.0
-    time = @elapsed while n_rounds < 18 # bail after this point
+    local samples
+    while n_rounds < 30 # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
-        samples = get_sample(pt) # compute summaries of last round (0.5 of all samples)
-        miness = min(min_ess_chains(samples),min_ess_batch(samples))
+        samples = get_sample(pt) # only from last round
+        miness = min_ess_all_methods(samples)
         miness > miness_threshold && break    
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
     end
+    time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     return time, samples, n_steps, miness
 end
 
-# TODO: make this double until we get enough minESS
-function nuts_sample_from_model(model, seed, n_rounds; kwargs...)
+#######################################
+# cmdstan
+#######################################
+
+# StanSample is broken, it doesn't respect the arguments in the SampleModel object
+# Therefore, we use its internals but then bypass it by calling cmdstan directly
+function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
+    # make model and data from the arguments
     stan_model = model_string(model; kwargs...)
     sm = SampleModel(model, stan_model) 
-    sm.num_threads      = 1
-    sm.num_julia_chains = 1
-    sm.num_chains       = 1
-    sm.num_samples      = 2^n_rounds 
-    sm.num_warmups      = 2^n_rounds - 2
-    sm.save_warmup      = true
-    sm.seed             = seed
-    sm.show_logging     = true
-
     data = stan_data(model; kwargs...)
-    time = @elapsed begin 
-        rc = stan_sample(sm; data)
+    StanSample.update_json_files(sm, data, 1, "data")
+
+    # run until minESS threshold is breached
+    n_samples = ceil(Int, 10*miness_threshold) # assume ESS/n_samples = 10%
+    n_steps = 0
+    miness = time = 0.0
+    local samples
+    while n_samples < 2^30
+        cmd = stan_cmd(sm, n_samples, seed)
+        time += @elapsed run(cmd)
+        info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
+        n_steps += sum(info.n_leapfrog__) # count leapfrogs during warmup
+        samples = info[(sm.num_warmups+1):end, 8:end] # discard 7 auxiliary variables
+        miness = min_ess_all_methods(samples)
+        miness > miness_threshold && break    
+        n_samples *= 2 
     end
-    sample = DataFrame(read_samples(sm))[(sm.num_warmups+1):end,:] # discard warmup
-    @assert nrow(sample) == 2^n_rounds == sm.num_samples "nrow(sample) = $(nrow(sample)), sm.num_samples=$(sm.num_samples)"
-    info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
-    @assert size(info,1) == sm.num_samples + sm.num_warmups
-    n_leapfrog = sum(info.n_leapfrog__) # count leapfrogs during warmup
-    return time, sample, n_leapfrog
+    return time, samples, n_steps, miness
 end
 
-get_step_size(explorer) = explorer.step_size
-get_step_size(explorer::Mix) = first(explorer.explorers).step_size
-
-###############################################################################
-# loading data
-###############################################################################
-
-function base_dir()
-    base_folder = dirname(dirname(Base.active_project()))
-    endswith(base_folder, "autoHMC-mev") || error("please activate the autoHMC-mev julia-environment")
-    return base_folder
-end
-
-function get_summary_df(experiment::String)
-    base_folder = base_dir()
-    csv_path    = joinpath(base_folder, "deliverables", experiment, "aggregated", "summary.csv")
-    return DataFrame(CSV.File(csv_path))
+function stan_cmd(sm::SampleModel, n_samples, stan_seed)
+    cmd = `$(sm.output_base) num_threads=1 sample num_chains=1 num_samples=$n_samples`
+    cmd = `$cmd num_warmup=$n_samples save_warmup=true adapt engaged=true`
+    cmd = `$cmd id=1 data file=$(first(sm.data_file)) random seed=$stan_seed`
+    cmd = `$cmd output file=$(sm.output_base)_chain_1.csv`
 end
 
 ###############################################################################
-# sampling utilities
+# model utils
 ###############################################################################
 
 function model_string(model; dataset=nothing, kwargs...)
@@ -198,7 +217,7 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     if model in ("funnel", "banana")
         Dict("dim" => dim-1, "scale" => scale)
     elseif model in ("funnel_scale", "banana_scale") 
-        Dict("dim" => 1, "scale" => inv(dim))
+        Dict("dim" => 1, "scale" => scale) # actual dimension is dim+1
     elseif model == "normal"
         Dict("dim" => dim) 
     elseif model == "two_component_normal_scale"
