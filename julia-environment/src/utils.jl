@@ -162,7 +162,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
     StanSample.update_json_files(sm, data, 1, "data")
 
     # run until minESS threshold is breached
-    n_samples = ceil(Int, 10*miness_threshold) # assume ESS/n_samples = 10%
+    n_samples = max(1000, ceil(Int, 10*miness_threshold)) # assume ESS/n_samples = 10%
     n_steps = 0
     miness = time = 0.0
     local samples

@@ -26,7 +26,7 @@ If you have Julia and cmdstan installed locally, you can run
 export CMDSTAN=/full/path/to/cmdstan-vx.xx
 ```
 
-## Recommended `.bashrc` settings for clusters
+## Recommended `.bashrc` settings for Sockeye
 
 Add the following at the bottom of your `.bashrc`, replacing
 
