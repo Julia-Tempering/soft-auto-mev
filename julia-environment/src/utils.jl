@@ -86,20 +86,20 @@ min_ess_all_methods(samples) = min(min_ess_chains(samples), min_ess_batch(sample
 # sampling
 ###############################################################################
 
-make_explorer(sampler_str, selector_str, int_time_str, jitter_str) =
-	if sampler_str == "AutoMALA"
-		AutoMALA(base_n_refresh=1, exponent_n_refresh=0.0) # increasing effort is handled implicitly by the minESS threshold condition
-	elseif sampler_str == "SliceSampler"
+function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
+    jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
+	if sampler_str in ("SliceSampler", "NUTS") # irrelevant for NUTS since we use cmdstan
 		SliceSampler(n_passes=1)
-	elseif sampler_str == "NUTS"
-		AutoMALA() # irrelevant since we use cmdstan
-	elseif sampler_str == "SimpleAHMC"
+	elseif sampler_str == "SimpleAHMC" # we handle autoMALA as special case of SimpleAHMC
 		selector = selector_str == "inverted" ?
-			autoHMC.AMSelectorInverted() : autoHMC.AMSelector()
-		int_time = int_time_str == "fixed" ? 
-			autoHMC.AdaptiveFixedIntegrationTime() :
-			autoHMC.AdaptiveRandomIntegrationTime()
-		jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
+			autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
+		int_time = if int_time_str == "single_step"
+            autoHMC.FixedIntegrationTime(exponent_int_time=0.0) # Pigeons.AutoMALA is recovered if additionally jitter is Dirac and selector is legacy, see autoHMC tests
+        elseif int_time_str == "fixed"
+            autoHMC.AdaptiveFixedIntegrationTime()
+        else
+            autoHMC.AdaptiveRandomIntegrationTime()
+        end
 		SimpleAHMC(
 			n_refresh=1, int_time = int_time, step_size_selector = selector,
 			step_jitter_dist = jitter
@@ -107,13 +107,11 @@ make_explorer(sampler_str, selector_str, int_time_str, jitter_str) =
 	elseif sampler_str == "SimpleRWMH"
 		selector = selector_str == "inverted" ?
 			autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
-		jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
-		SimpleRWMH(
-			step_size_selector = selector, step_jitter_dist = jitter
-		)
+		SimpleRWMH(step_size_selector = selector, step_jitter_dist = jitter)
 	else
 		throw(ArgumentError("unknown sampler $sampler_str"))
 	end
+end
 
 #######################################
 # pigeons

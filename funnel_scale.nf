@@ -5,9 +5,9 @@ def variables = [
     scale_idx: (1..20),
     seed: (1..30),
     model: ["funnel_scale"],
-    sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "AutoMALA", "SliceSampler"],
+    sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "SliceSampler"],
     selector: ["standard", "inverted"],
-    int_time: ["fixed", "rand"],
+    int_time: ["fixed", "rand", "single_step"], // single_step gives autoMALA
     logstep_jitter: ["none", "normal"]
 ]
 
