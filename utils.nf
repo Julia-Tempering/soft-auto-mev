@@ -33,6 +33,7 @@ def _crossProduct(mapOfLists, keys) {
     return result
 }
 
+def deliverables(workflow) { 'deliverables/' + workflow.scriptName.replace('.nf','') }
 
 //// Collect CSVs from many execs
 
@@ -60,7 +61,7 @@ process collectCSVsProcess {
         file jsonObjects
     output:
         path aggregated
-    publishDir deliverables(workflow), mode: 'copy', overwrite: true
+    publishDir {deliverables(workflow)}, mode: 'copy', overwrite: true
     """
     aggregate
     """
@@ -157,7 +158,3 @@ process commit {
 /////
 
 def pow(int i, int j) { java.lang.Math.pow(i, j) as Integer}
-
-////
-
-def deliverables(workflow) { 'deliverables/' + workflow.scriptName.replace('.nf','') }

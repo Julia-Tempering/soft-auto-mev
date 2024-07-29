@@ -36,7 +36,7 @@ cat <<EOF > temp.jl
     Pigeons.stan_banana(1)
     StanLogPotential(
         joinpath("$baseDir", "stan", "horseshoe_logit.stan"), 
-        Pigeons.json(; n=0,d=0,x="[[]]",y="[]")
+        Pigeons.json(; n=0,d=0,x=zeros((0,0)),y=zeros(0))
     )
     StanLogPotential(
         joinpath("$baseDir", "stan", "two_component_normal.stan"), 
