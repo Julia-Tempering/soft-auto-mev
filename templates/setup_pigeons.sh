@@ -12,8 +12,8 @@ fi
 
 # manually clone repos in order to be able to use different id keys
 rm -rf work/repos/
-GIT_SSH_COMMAND='ssh -i keys/id_autoHMC -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoHMC.git work/repos/autoHMC
-GIT_SSH_COMMAND='ssh -i keys/id_autoRWMH -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoRWMH.git work/repos/autoRWMH
+GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoHMC -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoHMC.git $baseDir/work/repos/autoHMC
+GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoRWMH -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoRWMH.git $baseDir/work/repos/autoRWMH
 
 # Create Julia script that activates the julia environment and adds the pkg repos above
 # NB: need to do this here so that nextflow can fill in julia_env and baseDir
@@ -26,8 +26,8 @@ cat <<EOF > temp.jl
     # need to install them jointly otherwise Julia complains about unregistered pkgs
     Pkg.add([ 
         Pkg.PackageSpec(name="Pigeons", rev="main"),
-        Pkg.PackageSpec(path=joinpath("work", "repos", "autoHMC")),
-        Pkg.PackageSpec(path=joinpath("work", "repos", "autoRWMH"))
+        Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoHMC")),
+        Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoRWMH"))
     ])
     Pkg.instantiate()
     Pkg.precompile()
