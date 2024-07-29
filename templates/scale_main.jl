@@ -3,6 +3,12 @@ using Pkg
 Pkg.activate(joinpath("$baseDir", "$julia_env")) 
 include(joinpath("$baseDir", "$julia_env", "src", "utils.jl")) # loads dependencies too
 
+@info """ Running experiments with the following combination of parameters:
+	
+	${arg}
+
+"""
+
 function main()
 	# collect global vars 
 	explorer_type = "${arg.sampler_type}"

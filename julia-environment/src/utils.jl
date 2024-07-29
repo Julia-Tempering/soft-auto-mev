@@ -130,15 +130,22 @@ function pt_sample_from_model(target, seed, explorer, miness_threshold)
     ))
 
     # run until minESS threshold is breached
-    n_steps = 0
+    n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds < 30 # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
-        miness = min_ess_all_methods(samples)
-        miness > miness_threshold && break    
+        n_samples = length(samples)
+        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples) # skip computing ess for low sample sizes (buggy)
+        miness > miness_threshold && break
+        @info """
+            Low ESS after round $n_rounds:
+            \tn_samples = $n_samples 
+            \tminess = $miness < $miness_threshold = miness_threshold
+            Running another round.
+        """
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
     end
@@ -171,7 +178,13 @@ function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
         n_steps += sum(info.n_leapfrog__) # count leapfrogs (including warmup)
         samples = info[(sm.num_warmups+1):end, 8:end] # discard 7 auxiliary variables + warmup
         miness = min_ess_all_methods(samples)
-        miness > miness_threshold && break    
+        miness > miness_threshold && break
+        @info """
+            Low ESS:
+            \tn_samples = $n_samples 
+            \tminess = $miness < $miness_threshold = miness_threshold
+            Doubling n_samples and re-running.
+        """
         n_samples *= 2 
     end
     return time, samples, n_steps, miness

@@ -32,7 +32,7 @@ workflow {
 
 process runSimulation {
     memory { 5.GB * task.attempt }
-    time { 1.hour * task.attempt }
+    time { 4.hour * task.attempt }
     errorStrategy {params.dryRun ? 'terminate' : 'retry'}
     maxRetries 1
     input:
