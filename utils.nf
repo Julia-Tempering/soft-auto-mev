@@ -75,9 +75,7 @@ process setupPigeons {
     debug true
     executor 'local'
     scratch false
-    time { 2.h * Math.pow(2, task.attempt-1) }
-    errorStrategy 'retry'
-    maxRetries '4'
+    time 2.h
     input:
         env JULIA_DEPOT_PATH
         path julia_env

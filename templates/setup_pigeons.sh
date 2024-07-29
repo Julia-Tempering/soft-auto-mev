@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash 
 
 # if inside the apptainer container, start ssh agent and add keys
 if [ -v APPTAINER_NAME ] ; then
@@ -10,8 +10,12 @@ if [ -v APPTAINER_NAME ] ; then
     ssh-add $baseDir/keys/id_autoRWMH
 fi
 
-# Create Julia script that activates the julia environment and adds latest dev
-# versions of our packages.
+# manually clone repos in order to be able to use different id keys
+rm -rf work/repos/
+GIT_SSH_COMMAND='ssh -i keys/id_autoHMC -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoHMC.git work/repos/autoHMC
+GIT_SSH_COMMAND='ssh -i keys/id_autoRWMH -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoRWMH.git work/repos/autoRWMH
+
+# Create Julia script that activates the julia environment and adds the pkg repos above
 # NB: need to do this here so that nextflow can fill in julia_env and baseDir
 # also, cannot run the jl script in another process because then the container is reloaded
 # so the ssh setup disappears
@@ -19,26 +23,11 @@ cat <<EOF > temp.jl
     using Pkg
     Pkg.activate("$julia_env")
 
-    # clone each private repo
-    tmp_folder = mktempdir()
-    run(
-        addenv(
-            `git clone git@github.com:Julia-Tempering/autoHMC.git \$tmp_folder/autoHMC`, 
-            "GIT_SSH_COMMAND" => "ssh -i keys/id_autoHMC -o IdentitiesOnly=yes"
-        )
-    )
-    run(
-        addenv(
-            `git clone git@github.com:Julia-Tempering/autoRWMH.git \$tmp_folder/autoRWMH`, 
-            "GIT_SSH_COMMAND" => "ssh -i keys/id_autoRWMH -o IdentitiesOnly=yes"
-        )
-    )
-
     # need to install them jointly otherwise Julia complains about unregistered pkgs
     Pkg.add([ 
         Pkg.PackageSpec(name="Pigeons", rev="main"),
-        Pkg.PackageSpec(path=joinpath(tmp_folder, "autoHMC")),
-        Pkg.PackageSpec(path=joinpath(tmp_folder, "autoRWMH"))
+        Pkg.PackageSpec(path=joinpath("work", "repos", "autoHMC")),
+        Pkg.PackageSpec(path=joinpath("work", "repos", "autoRWMH"))
     ])
     Pkg.instantiate()
     Pkg.precompile()
