@@ -18,10 +18,27 @@ fi
 cat <<EOF > temp.jl
     using Pkg
     Pkg.activate("$julia_env")
-    Pkg.add([ # need to install them jointly otherwise Julia complains autoHMC/autoRWMH are not registered
+
+    # clone each private repo
+    tmp_folder = mktempdir()
+    run(
+        addenv(
+            `git clone git@github.com:Julia-Tempering/autoHMC.git \$tmp_folder/autoHMC`, 
+            "GIT_SSH_COMMAND" => "ssh -i keys/id_autoHMC -o IdentitiesOnly=yes"
+        )
+    )
+    run(
+        addenv(
+            `git clone git@github.com:Julia-Tempering/autoRWMH.git \$tmp_folder/autoRWMH`, 
+            "GIT_SSH_COMMAND" => "ssh -i keys/id_autoRWMH -o IdentitiesOnly=yes"
+        )
+    )
+
+    # need to install them jointly otherwise Julia complains about unregistered pkgs
+    Pkg.add([ 
         Pkg.PackageSpec(name="Pigeons", rev="main"),
-        Pkg.PackageSpec(url="git@github.com:Julia-Tempering/autoHMC.git", rev="main"),
-        Pkg.PackageSpec(url="git@github.com:Julia-Tempering/autoRWMH.git", rev="main")
+        Pkg.PackageSpec(path=joinpath(tmp_folder, "autoHMC")),
+        Pkg.PackageSpec(path=joinpath(tmp_folder, "autoRWMH"))
     ])
     Pkg.instantiate()
     Pkg.precompile()
