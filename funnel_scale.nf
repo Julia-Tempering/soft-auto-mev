@@ -7,7 +7,7 @@ def variables = [
     model: ["funnel_scale"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "SliceSampler"],
     selector: ["standard", "inverted"],
-    int_time: ["fixed", "rand", "single_step"], // single_step gives autoMALA
+    int_time: ["rand", "single_step"], // single_step gives autoMALA
     logstep_jitter: ["none", "normal"]
 ]
 
@@ -32,7 +32,7 @@ workflow {
 
 process runSimulation {
     memory { 5.GB * task.attempt }
-    time { 4.hour * task.attempt }
+    time { 8.hour * task.attempt }
     errorStrategy {params.dryRun ? 'terminate' : 'retry'}
     maxRetries 1
     input:
