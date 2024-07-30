@@ -22,20 +22,15 @@ function main()
 	min_ess_threshold = ${min_ess_threshold}
 
 	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
-	    pt_sample_from_model(target, seed, explorer, min_ess_threshold)
+	    pt_sample_from_model(model, target, seed, explorer, min_ess_threshold)
 	else # use cmdstan for NUTS
 	    nuts_sample_from_model(model, seed, min_ess_threshold; scale=scale)
 	end
-	margin_idx = 1
-	margin_ess_exact = margin_ess(samples, model, margin_idx, scale)
-	margin_samples = get_component_samples(samples, margin_idx)
-	margin_mean = mean(margin_samples) 
-	margin_var = var(margin_samples) 
-	df = DataFrame(
-	    scale = scale, miness = miness, margin_ess_exact = margin_ess_exact, time = time,
-		n_steps = n_steps, margin_mean = margin_mean, margin_var = margin_var, 
-	)
 
+	df = hcat(
+		DataFrame(scale = scale, miness = miness, time = time, n_steps = n_steps),
+		margin_summary(samples, model, scale)
+	)
 	isdir("csvs") || mkdir("csvs")
 	CSV.write("csvs/summary.csv", df)
 end

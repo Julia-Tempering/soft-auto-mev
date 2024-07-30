@@ -31,19 +31,20 @@ get_component_samples(samples::AbstractVector, idx_component::Int) =
     [s[idx_component] for s in samples]
 get_component_samples(samples::DataFrame, idx_component) = Array(samples[:,idx_component])
 
+# returns tuple: (margin_idx, mean, std_dev)
 special_margin_mean_std(model::String, args...) = 
     if startswith(model,"funnel")
-        (0.,3.)
+        (1, 0., 3.)
     elseif startswith(model,"banana")
-        (0., sqrt(10))
+        (1, 0., sqrt(10))
     elseif startswith(model,"eight_schools")    # approx using variational PT (see 8schools_pilot.jl)
-        (3.574118538746056, 3.1726880307401455)
+        (1, 3.574118538746056, 3.1726880307401455)
     elseif startswith(model, "normal") 
-        (0., 1.)
+        (1, 0., 1.)
     elseif startswith(model, "two_component_normal")
-        (0., first(two_component_normal_stdevs(args...)) ) # the margin with the largest stdev
+        (1, 0., first(two_component_normal_stdevs(args...)) ) # the margin with the largest stdev
     else
-        error("unknown model $model")
+        throw(KeyError(model))
     end
 n_vars(samples::AbstractVector) = length(first(samples))
 n_vars(samples::DataFrame) = size(samples,2)
@@ -66,9 +67,10 @@ end
 
 include("batch_means.jl")
 
-function margin_ess(samples, model, margin_idx, args...)
+function margin_ess(samples, model, args...)
+    margin_idx, true_mean, true_sd = special_margin_mean_std(model, args...)
     margin_samples = get_component_samples(samples, margin_idx)
-    batch_means_ess(margin_samples, special_margin_mean_std(model, args...)...) 
+    batch_means_ess(margin_samples, true_mean, true_sd) 
 end
 
 # minimum ess using batch means
@@ -77,10 +79,37 @@ min_ess_batch(samples) = minimum(1:n_vars(samples)) do i
 end
 
 # minimum ess using the MCMCChains approach (which is based on Stan's)
-min_ess_chains(samples) = minimum(ess(to_chains(samples),kind=:basic).nt.ess) # :basic is actual ess of the vars. default is :bulk which computes ess on rank-normalized vars
+function min_ess_chains(samples)
+    chn = to_chains(samples)
+    min(
+        minimum(ess(chn).nt.ess),            # default is :bulk which computes ess on rank-normalized vars
+        minimum(ess(chn,kind=:basic).nt.ess) # :basic is actual ess of the vars.
+    )
+end
 
 # minimum over dimensions and methods
-min_ess_all_methods(samples) = min(min_ess_chains(samples), min_ess_batch(samples))
+function min_ess_all_methods(samples, model)
+    special_margin_ess = try
+        margin_ess(samples, model)
+    catch e
+        if e isa KeyError
+            Inf
+        else
+            rethrow(e)
+        end
+    end
+    min(special_margin_ess, min(min_ess_chains(samples), min_ess_batch(samples)))
+end
+
+# returns ESS, mean and var
+function margin_summary(samples, model, args...)
+    margin_idx, true_mean, true_sd = special_margin_mean_std(model, args...)
+    margin_samples = get_component_samples(samples, margin_idx)
+	margin_ess_exact = batch_means_ess(margin_samples, true_mean, true_sd)
+	margin_mean = mean(margin_samples) 
+	margin_var = var(margin_samples)
+    DataFrame(margin_ess_exact = margin_ess_exact, margin_mean = margin_mean, margin_var = margin_var)
+end
 
 ###############################################################################
 # sampling
@@ -94,7 +123,7 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
 		selector = selector_str == "inverted" ?
 			autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
 		int_time = if int_time_str == "single_step"
-            autoHMC.FixedIntegrationTime(exponent_int_time=0.0) # Pigeons.AutoMALA is recovered if additionally jitter is Dirac and selector is legacy, see autoHMC tests
+            autoHMC.FixedIntegrationTime() # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
         elseif int_time_str == "fixed"
             autoHMC.AdaptiveFixedIntegrationTime()
         else
@@ -117,7 +146,7 @@ end
 # pigeons
 #######################################
 
-function pt_sample_from_model(target, seed, explorer, miness_threshold)
+function pt_sample_from_model(model, target, seed, explorer, miness_threshold)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     pt = PT(Inputs(
         target      = target, 
@@ -138,7 +167,7 @@ function pt_sample_from_model(target, seed, explorer, miness_threshold)
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
-        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples) # skip computing ess for low sample sizes (buggy)
+        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model) # skip computing ess for low sample sizes (buggy)
         miness > miness_threshold && break
         @info """
             Low ESS after round $n_rounds:
@@ -177,7 +206,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
         info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
         n_steps += sum(info.n_leapfrog__) # count leapfrogs (including warmup)
         samples = info[(sm.num_warmups+1):end, 8:end] # discard 7 auxiliary variables + warmup
-        miness = min_ess_all_methods(samples)
+        miness = min_ess_all_methods(samples, model)
         miness > miness_threshold && break
         @info """
             Low ESS:
@@ -278,8 +307,8 @@ end
 # Two component normal for testing preconditioner
 two_component_normal_stdevs(e::Real) = (10. ^(e), 10. ^(-e))
 function make_2_comp_norm_target(n, exponent)
-    s_lo, s_hi = two_component_normal_stdevs(exponent)
-    json_str = Pigeons.json(; n=n, s_lo=s_lo, s_hi=s_hi)
+    s_hi, s_lo = two_component_normal_stdevs(exponent)
+    json_str = Pigeons.json(; n=n, s_hi=s_hi, s_lo=s_lo)
     StanLogPotential(joinpath(
         base_dir(), "stan", "two_component_normal.stan"
     ), json_str)
