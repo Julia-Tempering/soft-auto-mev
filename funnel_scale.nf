@@ -31,8 +31,8 @@ workflow {
 }
 
 process runSimulation {
-    memory { 5.GB * task.attempt }
-    time { 8.hour * task.attempt }
+    memory { 4.GB * task.attempt }
+    time { 16.hour * task.attempt }
     errorStrategy {params.dryRun ? 'terminate' : 'retry'}
     maxRetries 1
     input:
@@ -44,3 +44,4 @@ process runSimulation {
   script:
     template 'scale_main.jl'
 }
+
