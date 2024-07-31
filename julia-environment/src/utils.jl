@@ -215,11 +215,11 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
     return time, samples, n_steps, miness
 end
 
-function stan_cmd(sm::SampleModel, n_samples, stan_seed)
+function stan_cmd(sm::SampleModel, n_samples, stan_seed; print_every=max(100, round(Int,n_samples/50)))
     cmd = `$(sm.output_base) num_threads=1 sample num_chains=1 num_samples=$n_samples`
     cmd = `$cmd num_warmup=$n_samples save_warmup=true adapt engaged=true`
     cmd = `$cmd id=1 data file=$(first(sm.data_file)) random seed=$stan_seed`
-    cmd = `$cmd output file=$(sm.output_base)_chain_1.csv`
+    cmd = `$cmd output file=$(sm.output_base)_chain_1.csv refresh=$print_every`
     return cmd
 end
 

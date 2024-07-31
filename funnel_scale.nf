@@ -7,7 +7,7 @@ def variables = [
     model: ["funnel_scale"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "SliceSampler"],
     selector: ["standard", "inverted"],
-    int_time: ["rand", "single_step"], // single_step gives autoMALA
+    int_time: ["single_step", "rand"], // single_step gives autoMALA
     logstep_jitter: ["none", "normal"]
 ]
 
@@ -22,16 +22,16 @@ workflow {
     args = crossProduct(variables, params.dryRun)
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
         .filter { it.sampler_type.startsWith("Simple") || it.logstep_jitter == variables.logstep_jitter.first() } // logstep_jitter is only relevant for auto types
-        .filter { it.sampler_type.startsWith("SimpleAHMC") || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
+        .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
     	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
 }
 
 process runSimulation {
-    memory { 16.GB * task.attempt }
-    time { 8.hour * task.attempt }
-    errorStrategy {params.dryRun ? 'terminate' : 'retry'}
+    memory { params.dryRun ? 4.GB : (16.GB * task.attempt) }
+    time { 2.hour * task.attempt }
+    errorStrategy { params.dryRun ? 'terminate' : ( (task.attempt <= process.maxRetries) ? 'retry' : 'ignore' ) } // retry-then-ignore strategy
     maxRetries 1
     input:
         env JULIA_DEPOT_PATH
