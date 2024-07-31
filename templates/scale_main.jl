@@ -13,18 +13,18 @@ function main()
 	# collect global vars 
 	explorer_type = "${arg.sampler_type}"
 	explorer = make_explorer(
-		"${arg.sampler_type}", "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}"
+		explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}"
 	)
 	model = "${arg.model}"
 	scale = get_scale(${arg.scale_idx}, model)
 	target = ${model_string[arg.model]}
 	seed = ${arg.seed}
-	min_ess_threshold = ${min_ess_threshold}
+	miness_threshold = ${params.dryRun ? 1 : 200} # lowered to 200 because we are running out of RAM with 1000
 
 	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
-	    pt_sample_from_model(model, target, seed, explorer, min_ess_threshold)
+	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
 	else # use cmdstan for NUTS
-	    nuts_sample_from_model(model, seed, min_ess_threshold; scale=scale)
+	    nuts_sample_from_model(model, seed, miness_threshold; scale=scale)
 	end
 
 	df = hcat(

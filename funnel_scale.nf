@@ -15,8 +15,6 @@ model_string = [
     funnel_scale: "Pigeons.stan_funnel(1, scale)",
 ]
 
-min_ess_threshold = params.dryRun ? 1 : 1000
-
 def julia_env_dir = file("julia-environment")
 def julia_depot_dir = file(".depot")
 
@@ -31,8 +29,8 @@ workflow {
 }
 
 process runSimulation {
-    memory { 4.GB * task.attempt }
-    time { 16.hour * task.attempt }
+    memory { 16.GB * task.attempt }
+    time { 8.hour * task.attempt }
     errorStrategy {params.dryRun ? 'terminate' : 'retry'}
     maxRetries 1
     input:

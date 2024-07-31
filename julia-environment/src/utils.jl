@@ -117,13 +117,13 @@ end
 
 function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
     jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
-	if sampler_str in ("SliceSampler", "NUTS") # irrelevant for NUTS since we use cmdstan
+	if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
 		SliceSampler(n_passes=1)
-	elseif sampler_str == "SimpleAHMC" # we handle autoMALA as special case of SimpleAHMC
+	elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
 		selector = selector_str == "inverted" ?
 			autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
 		int_time = if int_time_str == "single_step"
-            autoHMC.FixedIntegrationTime() # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
+            autoHMC.FixedIntegrationTime()                            # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
         elseif int_time_str == "fixed"
             autoHMC.AdaptiveFixedIntegrationTime()
         else
@@ -146,7 +146,7 @@ end
 # pigeons
 #######################################
 
-function pt_sample_from_model(model, target, seed, explorer, miness_threshold)
+function pt_sample_from_model(model, target, seed, explorer, miness_threshold; max_rounds = 25)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     pt = PT(Inputs(
         target      = target, 
@@ -162,7 +162,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold)
     n_steps = n_samples = 0
     miness = 0.0
     local samples
-    while n_rounds < 30 # bail after this point
+    while n_rounds < max_rounds # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
@@ -170,9 +170,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold)
         miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model) # skip computing ess for low sample sizes (buggy)
         miness > miness_threshold && break
         @info """
-            Low ESS after round $n_rounds:
-            \tn_samples = $n_samples 
-            \tminess = $miness < $miness_threshold = miness_threshold
+            Low ESS after round $n_rounds: miness = $miness < $miness_threshold = miness_threshold
             Running another round.
         """
         pt = Pigeons.increment_n_rounds!(pt, 1)
@@ -186,9 +184,9 @@ end
 # cmdstan
 #######################################
 
-# StanSample is broken, it doesn't respect the arguments in the SampleModel object
+# StanSample is broken; it doesn't respect the arguments in the SampleModel object
 # Therefore, we use its internals but then bypass it by calling cmdstan directly
-function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
+function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^25, kwargs...)
     # make model and data from the arguments
     stan_model = model_string(model; kwargs...)
     sm = SampleModel(model, stan_model) 
@@ -196,11 +194,11 @@ function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
     StanSample.update_json_files(sm, data, 1, "data")
 
     # run until minESS threshold is breached
-    n_samples = max(1000, ceil(Int, 10*miness_threshold)) # assume ESS/n_samples = 10%
+    n_samples = max(1000, ceil(Int, 10*miness_threshold)) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
     n_steps = 0
     miness = time = 0.0
     local samples
-    while n_samples < 2^30
+    while n_samples < max_samples
         cmd = stan_cmd(sm, n_samples, seed)
         time += @elapsed run(cmd)
         info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
@@ -209,9 +207,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; kwargs...)
         miness = min_ess_all_methods(samples, model)
         miness > miness_threshold && break
         @info """
-            Low ESS:
-            \tn_samples = $n_samples 
-            \tminess = $miness < $miness_threshold = miness_threshold
+            Low ESS: miness = $miness < $miness_threshold = miness_threshold
             Doubling n_samples and re-running.
         """
         n_samples *= 2 
@@ -224,6 +220,7 @@ function stan_cmd(sm::SampleModel, n_samples, stan_seed)
     cmd = `$cmd num_warmup=$n_samples save_warmup=true adapt engaged=true`
     cmd = `$cmd id=1 data file=$(first(sm.data_file)) random seed=$stan_seed`
     cmd = `$cmd output file=$(sm.output_base)_chain_1.csv`
+    return cmd
 end
 
 ###############################################################################
