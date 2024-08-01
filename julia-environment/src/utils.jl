@@ -162,7 +162,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     n_steps = n_samples = 0
     miness = 0.0
     local samples
-    while n_rounds < max_rounds # bail after this point
+    while n_rounds ≤ max_rounds # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
