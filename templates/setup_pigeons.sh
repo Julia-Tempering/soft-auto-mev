@@ -29,6 +29,7 @@ cat <<EOF > temp.jl
         Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoHMC")),
         Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoRWMH"))
     ])
+    Pkg.update()
     Pkg.instantiate()
     Pkg.precompile()
 

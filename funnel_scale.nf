@@ -30,7 +30,7 @@ workflow {
 }
 
 process runSimulation {
-    memory { params.dryRun ? 4.GB : (16.GB * task.attempt) }
+    memory { params.dryRun ? 4.GB : ( task.attempt * (6.GB * (arg.sampler_type == "NUTS" ? 3 : 1)) ) } // NUTS needs ~ 65M samples for 200 minESS
     time { 2.hour * task.attempt }
     maxRetries { MAX_RETRIES }
     errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
