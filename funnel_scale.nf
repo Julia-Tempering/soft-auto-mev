@@ -15,6 +15,7 @@ model_string = [
     funnel_scale: "Pigeons.stan_funnel(1, scale)",
 ]
 
+def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
 def julia_env_dir = file("julia-environment")
 def julia_depot_dir = file(".depot")
 
@@ -31,8 +32,8 @@ workflow {
 process runSimulation {
     memory { params.dryRun ? 4.GB : (16.GB * task.attempt) }
     time { 2.hour * task.attempt }
-    errorStrategy { params.dryRun ? 'terminate' : ( (task.attempt <= process.maxRetries) ? 'retry' : 'ignore' ) } // retry-then-ignore strategy
-    maxRetries 1
+    maxRetries { MAX_RETRIES }
+    errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
     input:
         env JULIA_DEPOT_PATH
         path julia_env
