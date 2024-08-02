@@ -19,7 +19,7 @@ function main()
 	scale = get_scale(${arg.scale_idx}, model)
 	target = ${model_string[arg.model]}
 	seed = ${arg.seed}
-	miness_threshold = ${params.dryRun ? 1 : 200} # lowered to 200 because we are running out of RAM with 1000
+	miness_threshold = ${params.dryRun ? 1 : 100}
 
 	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
