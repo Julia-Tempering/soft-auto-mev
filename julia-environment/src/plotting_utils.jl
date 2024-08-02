@@ -31,10 +31,10 @@ function scatter_miness_cost(experiment::String)
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
     foreach((:miness_per_sec, :miness_per_step)) do sym
-        fig_steps = data(df_hard) * 
+        fig_steps = data(df) * 
             visual(Scatter) *
             mapping(
-                sym => log => "minESS / " * (sym == :miness_per_sec ? "second" : "step") * " (log scale)",
+                sym => log10 => "minESS / " * (sym == :miness_per_sec ? "second" : "step") * " (log scale)",
                 :sampler => identity => "Sampler",
                 color=:sampler_type
             ) |> 
