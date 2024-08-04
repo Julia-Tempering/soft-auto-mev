@@ -17,6 +17,7 @@ function main()
 	)
     dim = ${arg.dim}
 	model = "${arg.model}"
+	scale = get_scale(1, model)
 	target = ${model_string[arg.model]}
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
@@ -24,7 +25,7 @@ function main()
 	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
 	else # use cmdstan for NUTS
-	    nuts_sample_from_model(model, seed, miness_threshold; dim=dim)
+	    nuts_sample_from_model(model, seed, miness_threshold; dim=dim, scale=scale)
 	end
 
 	df = hcat(

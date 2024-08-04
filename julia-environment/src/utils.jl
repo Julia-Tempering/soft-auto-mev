@@ -236,7 +236,11 @@ function get_scale(scale_idx, model_name)
 	elseif model_name == "banana_scale"
 		e = ((-13):6)[scale_idx]
 		2.0 ^ e
-	else
+    elseif model_name == "funnel"
+        2.0
+    elseif model_name == "banana"
+        1.0
+    else
 		throw(ArgumentError("Don't know how to make a scale argument for $model_name"))
 	end
 end

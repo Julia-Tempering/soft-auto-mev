@@ -4,8 +4,8 @@ params.dryRun = false
 def variables = [
     dim: (1..10).collect{ 1 << it }, // bitshift
     seed: (1..30),
-    model: ["normal", "banana", "funnel"],
-    sampler_type: ["NUTS", "SimpleAHMC", "SimpleRWMH", "SliceSampler"],
+    model: ["banana", "normal", "funnel"],
+    sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "SliceSampler"],
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
     logstep_jitter: ["none", "normal"]
