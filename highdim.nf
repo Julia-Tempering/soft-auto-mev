@@ -32,8 +32,8 @@ workflow {
 }
 
 process runSimulation {
-    memory { 1.GB * (2.0 + arg.dim * arg.dim * (62.0 / (1024.0*1024.0))) * task.attempt } // linear estimate for quad dim growth, reaches 64GB at 1024 dims
-    time { 1.hour * (0.5 + arg.dim * arg.dim * (2.5 / (1024.0*1024.0))) * task.attempt } // similar linear estimate
+    memory { 1.GB * (6.0 + arg.dim * arg.dim * (122.0 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
+    time { 1.hour * (0.5 + arg.dim * arg.dim * (4.5 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
     maxRetries { MAX_RETRIES }
     errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
     input:
