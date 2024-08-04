@@ -4,7 +4,7 @@ params.dryRun = false
 def variables = [
     dim: (1..10).collect{ 1 << it }, // bitshift
     seed: (1..30),
-    model: ["normal"],
+    model: ["normal", "banana", "funnel"],
     sampler_type: ["NUTS", "SimpleAHMC", "SimpleRWMH", "SliceSampler"],
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
@@ -13,6 +13,8 @@ def variables = [
 
 model_string = [
     normal: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, dim)",
+    funnel: "Pigeons.stan_funnel(dim-1, scale)", // NB: funnel and banana have extra parameter
+    banana: "Pigeons.stan_banana(dim-1, scale)"
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
