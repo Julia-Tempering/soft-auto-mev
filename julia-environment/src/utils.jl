@@ -240,6 +240,8 @@ function get_scale(scale_idx, model_name)
         2.0
     elseif model_name == "banana"
         1.0
+    elseif model_name == "normal"
+        1.0
     else
 		throw(ArgumentError("Don't know how to make a scale argument for $model_name"))
 	end
