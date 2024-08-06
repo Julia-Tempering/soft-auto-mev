@@ -32,7 +32,7 @@ workflow {
 }
 
 process runSimulation {
-    memory { 1.GB * (6.0 + arg.dim * arg.dim * (122.0 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
+    memory { 1.GB * (12.0 + arg.dim * arg.dim * (180.0 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
     time { 1.hour * (0.5 + arg.dim * arg.dim * (4.5 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
     maxRetries { MAX_RETRIES }
     errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
