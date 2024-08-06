@@ -15,3 +15,6 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 autoHMC = "771ff56b-3556-409a-939e-7967008010d3"
 autoRWMH = "9c7125eb-1c93-4483-8569-ec7e9755e655"
+
+[compat]
+AlgebraOfGraphics = "0.6"

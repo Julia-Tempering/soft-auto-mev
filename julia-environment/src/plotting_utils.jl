@@ -31,14 +31,14 @@ function scatter_miness_cost(experiment::String)
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
     foreach((:miness_per_sec, :miness_per_step)) do sym
-        fig_steps = data(df) * 
+        fig_plan = data(df) * 
             visual(Scatter) *
             mapping(
                 sym => log10 => "minESS / " * (sym == :miness_per_sec ? "second" : "step") * " (log scale)",
                 :sampler => identity => "Sampler",
                 color=:sampler_type
-            ) |> 
-            draw(axis = (width = 400, height = 400))
-        save(joinpath(plots_path,"$sym.png"), fig_steps, px_per_unit = 3) # save high-resolution png
+            )
+        fig = draw(fig_plan, axis = (width = 400, height = 400))
+        save(joinpath(plots_path,"$sym.png"), fig, px_per_unit = 3) # save high-resolution png
     end
 end
