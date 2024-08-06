@@ -23,7 +23,7 @@ function main()
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
 	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
-	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
+	    pt_sample_from_model(model, target, seed, explorer, miness_threshold; max_rounds=21) # autoRWMH breaks down at highdims, need to stop at some point or it keeps going and eating RAM 
 	else # use cmdstan for NUTS
 	    nuts_sample_from_model(model, seed, miness_threshold; dim=dim, scale=scale)
 	end
