@@ -2,7 +2,7 @@ include { crossProduct; collectCSVs; setupPigeons } from './utils.nf'
 params.dryRun = false
 
 def variables = [
-    dim: (1..10).collect{ 1 << it }, // bitshift
+    dim: (1..20).collect{ 1 << it }, // bitshift
     seed: (1..30),
     model: ["banana", "normal", "funnel"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS"],
@@ -23,6 +23,7 @@ def julia_depot_dir = file(".depot")
 
 workflow {
     args = crossProduct(variables, params.dryRun)
+        .filter { it.model == "normal" || it.dim <= 1024 } // only the Gaussian case is feasible in higher dimensions
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
         .filter { it.sampler_type.startsWith("Simple") || it.logstep_jitter == variables.logstep_jitter.first() } // logstep_jitter is only relevant for auto types
         .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
