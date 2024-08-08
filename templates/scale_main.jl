@@ -21,14 +21,14 @@ function main()
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
-	time, samples, n_steps, miness = if explorer_type != "NUTS" # use Pigeons 
+	time, samples, n_steps, miness, prop_log_diff = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
 	else # use cmdstan for NUTS
 	    nuts_sample_from_model(model, seed, miness_threshold; scale=scale)
 	end
 
 	df = hcat(
-		DataFrame(scale = scale, miness = miness, time = time, n_steps = n_steps),
+		DataFrame(scale = scale, miness = miness, time = time, n_steps = n_steps, prop_log_diff = prop_log_diff),
 		margin_summary(samples, model, scale)
 	)
 	isdir("csvs") || mkdir("csvs")

@@ -4,7 +4,7 @@ params.dryRun = false
 def variables = [
     dim: (1..20).collect{ 1 << it }, // bitshift
     seed: (1..30),
-    model: ["banana", "normal", "funnel"],
+    model: ["normal", "banana", "funnel"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS"],
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
@@ -17,7 +17,7 @@ model_string = [
     banana: "Pigeons.stan_banana(dim-1, scale)"
 ]
 
-def MAX_RETRIES = params.dryRun ? 0 : 2 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
+def MAX_RETRIES = 2 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
 def julia_env_dir = file("julia-environment")
 def julia_depot_dir = file(".depot")
 
@@ -33,10 +33,10 @@ workflow {
 }
 
 process runSimulation {
-    memory { 1.GB * (6.0 + arg.dim * arg.dim * (90.0 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
-    time { 1.hour * (0.5 + arg.dim * arg.dim * (4.5 / (1024.0*1024.0))) * task.attempt } // quad dim growth guess
+    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 1024) * 30.0 *(arg.dim/1048576.0)*(arg.dim/1048576.0)) * task.attempt } // quad dim growth guess (32G @ 2^20 dims) * 1000 if non-Gaussian targets (poor ESS ratio)
+    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 1024) * 4.5  *(arg.dim/1048576.0)*(arg.dim/1048576.0)) * task.attempt } // similar
     maxRetries { MAX_RETRIES }
-    errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
+    errorStrategy { params.dryRun ? 'finalize' : (task.attempt <= MAX_RETRIES ? 'retry' : 'ignore') }
     input:
         env JULIA_DEPOT_PATH
         path julia_env

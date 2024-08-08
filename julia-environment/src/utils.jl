@@ -146,14 +146,22 @@ end
 # pigeons
 #######################################
 
+# recorder for proposal log difference
+# It is a GroupBy(Int, Mean()) so can use as template any other such recorder
+explorer_proposal_log_diff() = Pigeons.explorer_acceptance_pr()
+
 function pt_sample_from_model(model, target, seed, explorer, miness_threshold; max_rounds = 25)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
+    recorders = [
+        record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
+        Pigeons.reversibility_rate
+    ]
     pt = PT(Inputs(
         target      = target, 
         seed        = seed,
         n_rounds    = n_rounds,
         n_chains    = 1, 
-        record      = [record_default(); Pigeons.explorer_acceptance_pr; Pigeons.traces; Pigeons.reversibility_rate],
+        record      = recorders,
         explorer    = explorer, 
         show_report = true
     ))
@@ -177,7 +185,9 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         n_rounds += 1 
     end
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
-    return time, samples, n_steps, miness
+    prop_log_diff = explorer isa SliceSampler ? zero(miness) : 
+        first(Pigeons.recorder_values(pt, :explorer_proposal_log_diff))
+    return time, samples, n_steps, miness, prop_log_diff
 end
 
 #######################################
@@ -212,7 +222,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
         """
         n_samples *= 2 
     end
-    return time, samples, n_steps, miness
+    return time, samples, n_steps, miness, zero(miness)
 end
 
 function stan_cmd(sm::SampleModel, n_samples, stan_seed; print_every=max(100, round(Int,n_samples/50)))

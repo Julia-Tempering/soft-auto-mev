@@ -11,7 +11,7 @@ if [ -v APPTAINER_NAME ] ; then
 fi
 
 # manually clone repos in order to be able to use different id keys
-rm -rf work/repos/
+rm -rf $baseDir/work/repos/
 GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoHMC -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoHMC.git $baseDir/work/repos/autoHMC
 GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoRWMH -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoRWMH.git $baseDir/work/repos/autoRWMH
 
