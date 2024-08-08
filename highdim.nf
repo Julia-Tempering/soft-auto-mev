@@ -5,9 +5,9 @@ def variables = [
     dim: (1..17).collect{ 1 << it }, // bitshift
     seed: (1..30),
     model: ["normal", "banana", "funnel"],
-    sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS"],
+    sampler_type: ["SimpleRWMH", "NUTS", "SimpleAHMC"],
     selector: ["standard", "inverted"],
-    int_time: ["single_step", "rand"], // single_step gives autoMALA
+    int_time: ["single_step", "rand"],
     logstep_jitter: ["none", "normal"]
 ]
 
@@ -25,16 +25,16 @@ workflow {
     args = crossProduct(variables, params.dryRun)
         .filter { it.model == "normal" || it.dim <= 1024 } // only the Gaussian case is feasible in higher dimensions
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
-        .filter { it.sampler_type == "SimpleRWMH" || it.logstep_jitter == variables.logstep_jitter.first() } // using logstep_jitter only for RWMH (fails in AHMC outside of Gaussian setting)
         .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
+        .filter { (it.sampler_type.startsWith("Simple") && it.int_time == "single_step") || it.logstep_jitter == variables.logstep_jitter.first() } // non-trivial jitter breaks with multi step (i.e., HMC)
     	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
 }
 
 process runSimulation {
-    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 20) * 190.0 *(arg.dim/131072.0)) * (1 << task.attempt) }
-    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 20) * 4.5   *(arg.dim/131072.0)) * (1 << task.attempt) }
+    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 20) * 190.0 *(arg.dim/131072.0)) * (1 << (task.attempt-1)) }
+    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 20) * 4.5   *(arg.dim/131072.0)) * (1 << (task.attempt-1)) }
     maxRetries { MAX_RETRIES }
     errorStrategy { params.dryRun ? 'finalize' : (task.attempt <= MAX_RETRIES ? 'retry' : 'ignore') }
     input:

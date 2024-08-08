@@ -184,10 +184,14 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
     end
+    step_size = explorer isa SliceSampler ? pt.shared.explorer.w : pt.shared.explorer.step_size
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     prop_log_diff = explorer isa SliceSampler ? zero(miness) : 
         first(Pigeons.recorder_values(pt, :explorer_proposal_log_diff))
-    return time, samples, n_steps, miness, prop_log_diff
+    stats_df = DataFrame(
+        time=time, n_steps=n_steps, miness=miness, 
+        prop_log_diff=prop_log_diff, step_size=step_size)
+    return samples, stats_df
 end
 
 #######################################
@@ -208,6 +212,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
     n_steps = 0
     miness = time = 0.0
     local samples
+    local info
     while n_samples < max_samples
         cmd = stan_cmd(sm, n_samples, seed)
         time += @elapsed run(cmd)
@@ -222,7 +227,10 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
         """
         n_samples *= 2 
     end
-    return time, samples, n_steps, miness, zero(miness)
+    stats_df = DataFrame(
+        time=time, n_steps=n_steps, miness=miness, 
+        prop_log_diff=zero(miness), step_size=info[end, 3])
+    return samples, stats_df
 end
 
 function stan_cmd(sm::SampleModel, n_samples, stan_seed; print_every=max(100, round(Int,n_samples/50)))
