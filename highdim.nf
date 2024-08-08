@@ -2,7 +2,7 @@ include { crossProduct; collectCSVs; setupPigeons } from './utils.nf'
 params.dryRun = false
 
 def variables = [
-    dim: (1..20).collect{ 1 << it }, // bitshift
+    dim: (1..17).collect{ 1 << it }, // bitshift
     seed: (1..30),
     model: ["normal", "banana", "funnel"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS"],
@@ -33,8 +33,8 @@ workflow {
 }
 
 process runSimulation {
-    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 1024) * 30.0 *(arg.dim/1048576.0)*(arg.dim/1048576.0)) * task.attempt } // quad dim growth guess (32G @ 2^20 dims) * 1000 if non-Gaussian targets (poor ESS ratio)
-    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 1024) * 4.5  *(arg.dim/1048576.0)*(arg.dim/1048576.0)) * task.attempt } // similar
+    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 20) * 190.0 *(arg.dim/131072.0)) * (1 << task.attempt) }
+    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 20) * 4.5   *(arg.dim/131072.0)) * (1 << task.attempt) }
     maxRetries { MAX_RETRIES }
     errorStrategy { params.dryRun ? 'finalize' : (task.attempt <= MAX_RETRIES ? 'retry' : 'ignore') }
     input:
