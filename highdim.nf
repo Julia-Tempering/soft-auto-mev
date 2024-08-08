@@ -2,10 +2,10 @@ include { crossProduct; collectCSVs; setupPigeons } from './utils.nf'
 params.dryRun = false
 
 def variables = [
-    dim: (1..17).collect{ 1 << it }, // bitshift
+    dim: (1..15).collect{ 1 << it }, // bitshift
     seed: (1..30),
     model: ["normal", "banana", "funnel"],
-    sampler_type: ["SimpleRWMH", "NUTS", "SimpleAHMC"],
+    sampler_type: ["SimpleRWMH", "NUTS", "SimpleAHMC"], // autoMALA is SimpleAHMC + single_step
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"],
     logstep_jitter: ["none", "normal"]
@@ -23,18 +23,22 @@ def julia_depot_dir = file(".depot")
 
 workflow {
     args = crossProduct(variables, params.dryRun)
-        .filter { it.model == "normal" || it.dim <= 1024 } // only the Gaussian case is feasible in higher dimensions
-        .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
-        .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
-        .filter { (it.sampler_type.startsWith("Simple") && it.int_time == "single_step") || it.logstep_jitter == variables.logstep_jitter.first() } // non-trivial jitter breaks with multi step (i.e., HMC)
+        // only the Gaussian case is feasible in higher dimensions
+        .filter { it.model == "normal" || it.dim <= 1024 }
+        // selector is only relevant for auto types
+        .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() }
+        // int_time is only relevant for autoHMC
+        .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() }
+        // non-trivial jitter breaks with multi step (i.e., HMC)
+        .filter { (it.sampler_type.startsWith("Simple") && it.int_time == "single_step") || it.logstep_jitter == variables.logstep_jitter.first() }
     	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
 }
 
 process runSimulation {
-    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 20) * 190.0 *(arg.dim/131072.0)) * (1 << (task.attempt-1)) }
-    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 20) * 4.5   *(arg.dim/131072.0)) * (1 << (task.attempt-1)) }
+    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 32) * 46.0 *(arg.dim/32768.0)) * (1 << (task.attempt-1)) }
+    time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 32) * 4.5   *(arg.dim/32768.0)) * (1 << (task.attempt-1)) }
     maxRetries { MAX_RETRIES }
     errorStrategy { params.dryRun ? 'finalize' : (task.attempt <= MAX_RETRIES ? 'retry' : 'ignore') }
     input:
