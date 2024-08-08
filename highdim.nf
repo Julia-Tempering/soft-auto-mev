@@ -25,7 +25,7 @@ workflow {
     args = crossProduct(variables, params.dryRun)
         .filter { it.model == "normal" || it.dim <= 1024 } // only the Gaussian case is feasible in higher dimensions
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
-        .filter { it.sampler_type.startsWith("Simple") || it.logstep_jitter == variables.logstep_jitter.first() } // logstep_jitter is only relevant for auto types
+        .filter { it.sampler_type == "SimpleRWMH" || it.logstep_jitter == variables.logstep_jitter.first() } // using logstep_jitter only for RWMH (fails in AHMC outside of Gaussian setting)
         .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
     	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
