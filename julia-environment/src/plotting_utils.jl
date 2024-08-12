@@ -43,39 +43,70 @@ function scatter_miness_cost(experiment::String)
     end
 end
 
-# TODO: in preparation
+
+#=
+High-dimensional scaling plots
+=#
+
 function highdim_plots()
     experiment = "highdim"
     df = get_summary_df(experiment)
-    df = filter(:miness => >=(100), df) # autoRWMH + inv + Gauss jitter fails bad on funnel
+    likely_miness_threshold = 10^floor(log10(median(df.miness)))
+    df = filter(:miness => >=(likely_miness_threshold), df)
     df = prepare_df(df)
+    foreach(("banana","funnel","normal")) do model
+        highdim_plots_model(filter(:model => ==(model), df))
+    end
+end
 
-    # sym = :miness_per_step
-    # model_df = filter(:model => ==(model), df)
-    # model_df = filter(:dim => ==(1024), model_df)
+function axis_labeller(sym, trans_str=" (log₁₀)")
+    base_str = if sym == :miness_per_sec
+        "minESS / second"
+    elseif sym == :miness_per_step
+        "minESS / step"
+    elseif sym == :step_size
+        "Step size"
+    end
+    base_str * trans_str
+end
 
-    # fig_steps = data(model_df) * 
-    #     visual(BoxPlot,orientation=:horizontal) *
-    #     mapping(
-    #         :sampler,
-    #         sym => log10 => "minESS / " * (sym == :miness_per_sec ? "second" : "step") * " (log₁₀)",
-    #         color=:sampler_type
-    #     ) |> 
-    #     draw(scales(Color = (; palette = :seaborn_colorblind)), axis = (width = 400, height = 400))
+function highdim_plots_model(model_df)
+    model = first(model_df.model)
+    max_dim = maximum(model_df.dim)
+    max_dim_df = filter(:dim => ==(max_dim), model_df)
 
-    model = "normal"
-    dim_df = filter(:model => ==(model), df)
-    dim_df = filter(:sampler => in(("autoRWMH_inv","autoHMC_inv","autoMALA_inv","NUTS")), dim_df)
-    dim_df.marginess_per_sec = dim_df.margin_ess_exact ./ dim_df.time
-    dim_df.marginess_per_step = dim_df.margin_ess_exact ./ dim_df.n_steps
+    plots_path = joinpath(base_dir(), "deliverables", experiment, "$model")
+    foreach((:miness_per_sec, :miness_per_step)) do sym
+        f = data(max_dim_df) * 
+            visual(BoxPlot) *
+            mapping(
+                :sampler,
+                sym => log10 => axis_labeller(sym),
+                color=:sampler_type
+            )
+        p = draw(f, axis = (width = 1400, height = 400, title="Results for $model at highest dimension available ($max_dim)"))
+        save(plots_path * "_max_dim_$sym.png", p, px_per_unit = 3) # save high-resolution png
+    end
 
-    fig_steps = data(dim_df) * 
-        visual(BoxPlot) *
-        mapping(
-            :dim => log2 => "Dimension (log₂)",
-            :marginess_per_sec => log10 => "Exact ESS per second (log₁₀)",
-            color=:sampler_type,
-            dodge=:sampler_type
-        )
-    fig_steps=draw(fig_steps,axis = (width = 800, height = 400))
+    # scaling of best combinations
+    gdf = groupby(max_dim_df, [:sampler,:sampler_type])
+    cgdf = combine(gdf, :miness_per_step => median, renamecols=false)
+    best_combinations = combine(
+        groupby(cgdf, :sampler_type),
+        [:sampler, :miness_per_step] => ((s,m) -> s[argmax(m)]) => :sampler
+    )
+    select!(best_combinations, Not(:sampler_type))
+    model_df_small = innerjoin(model_df, best_combinations; on=:sampler)
+    foreach((:miness_per_sec, :miness_per_step, :step_size)) do sym
+        f = data(model_df_small) * 
+            visual(BoxPlot) *
+            mapping(
+                :dim => log2 => "Dimension (log₂)",
+                sym => log10 => axis_labeller(sym),
+                color=:sampler,
+                dodge=:sampler
+            )
+        p=draw(f,axis = (width = 800, height = 400, title="Dimensional scaling for $model, best-performing combinations only"))
+        save(plots_path * "_scaling_$sym.png", p, px_per_unit = 3) # save high-resolution png
+    end
 end
