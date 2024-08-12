@@ -37,7 +37,7 @@ workflow {
 }
 
 process runSimulation {
-    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 32) * 94.0 *(arg.dim/32768.0)) * (1 << (task.attempt-1)) }
+    memory { 1.GB * (2.0 + (arg.model == "normal" ? 1 : 8) * 190.0 *(arg.dim/32768.0)) * (1 << (task.attempt-1)) }
     time { 1.hour * (0.5 + (arg.model == "normal" ? 1 : 32) * 4.5   *(arg.dim/32768.0)) * (1 << (task.attempt-1)) }
     maxRetries { MAX_RETRIES }
     errorStrategy { params.dryRun ? 'finalize' : (task.attempt <= MAX_RETRIES ? 'retry' : 'ignore') }
