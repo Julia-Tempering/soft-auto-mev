@@ -36,20 +36,9 @@ function OnlineStatsBase._fit!(e::ExactESS, y)
     fit!(e.buffer, z)                   # add standardized obs to the circular buffer
 end
 
-# test
-vals = randn(100000)
-vals = range(0.0,5.0,length=100000)
-e = ExactESS(0, 1)
-fit!(e, vals)
-value.(e.acs)
-std_spectrum_at_zero(e)
-batch_means_ess(vals,0.0,1.0)
-
-
 #=
 A standardized (σ=1) AR1 process for testing the estimator
 =#
-
 struct StandardAR1Process
     ϕ::Float64
 end
@@ -62,14 +51,41 @@ function simulate(a::StandardAR1Process, rng::AbstractRNG, n::Integer)
     Iterators.flatten((x0, tail))
 end
 
-rng = Xoshiro(1)
-a = StandardAR1Process(0.9)
-spectrum_at_zero(a)
-n = 100_000
-res = simulate(a, rng, n)
-e = ExactESS(0, sqrt(asymptotic_var(a)); K=63)
-nobs(e)
-fit!(e,res)
-relative_ESS(e)
-relative_ESS(a)
-value.(e.acs)
+
+#=
+Tests
+=#
+
+using CairoMakie, AlgebraOfGraphics, DataFrames
+
+n_sims = 100_000
+ϕs = 0.99*(2. .^ range(0,1,length=10) .- 1)
+seeds = 1:30
+Ks = 2 .^ (4:8)
+df = mapreduce(vcat, ϕs) do ϕ      # loop ϕ
+    a = StandardAR1Process(ϕ)
+    σ = sqrt(asymptotic_var(a))
+    tru = spectrum_at_zero(a)
+    mapreduce(vcat, seeds) do seed # loop seed
+        rng = Xoshiro(seed)
+        res = simulate(a, rng, n_sims)
+        mapreduce(vcat, Ks) do K   # loop K
+            e = ExactESS(0, σ; K=K)
+            fit!(e, res)
+            DataFrame(phi = ϕ, seed=seed, K=K, rerr = abs(spectrum_at_zero(e) - tru)/tru)
+        end
+    end
+end
+
+# plot
+s1 = data(df) * 
+    visual(BoxPlot) *
+    mapping(
+        :phi => (ϕ -> string(round(ϕ,digits=2))) => "Autocorrelation parameter",
+        :rerr => log10 => "Relative error of IAT estimator (log10)",
+        color=:K => nonnumeric,
+        dodge=:K => string
+    )
+# s2 = data(DataFrame(y=0.05)) * mapping(:y => log10) * visual(HLines)
+p=draw(s1, axis = (width = 800, height = 400, title="Experimental accuracy of online exact ESS estimator for AR(ϕ) processes"))
+save("temp.png", p, px_per_unit = 3) # save high-resolution png
