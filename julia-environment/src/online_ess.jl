@@ -5,8 +5,6 @@ using Random
 #=
 An online exact (i.e., known mean and sd) ESS estimator based on truncated
 spectral density at zero (i.e., truncated integrated autocorrelation time).
-
-TODO: results are too dependent on the autocorrelation index cutoff K.
 =#
 struct ExactESS{TF<:Real,TCB<:CircBuff,TACS} <: OnlineStat{TF}
     μ::TF
@@ -18,14 +16,14 @@ struct ExactESS{TF<:Real,TCB<:CircBuff,TACS} <: OnlineStat{TF}
         new{TF,typeof(buffer),typeof(acs)}(μ, σ, buffer, acs)
     end
 end
-function ExactESS(μ::Real, σ::Real; K::Integer = 256)
+function ExactESS(μ::Real, σ::Real; K::Integer = 64)
     TF = float(promote_type(typeof(μ), typeof(σ)))
-    buffer = CircBuff(TF, K)
+    buffer = CircBuff(TF, K, rev=true) # buffer[1] = most recently added element => used for ac(1)
     acs = ntuple(i -> Mean(TF), K)
     ExactESS(TF(μ), TF(σ), buffer, acs)
 end
 OnlineStatsBase.nobs(e::ExactESS) = nobs(e.buffer)
-std_spectrum_at_zero(e::ExactESS) = max(zero(e.μ), one(e.σ) + 2sum(value(e.buffer)))
+std_spectrum_at_zero(e::ExactESS) = max(zero(e.μ), one(e.σ) + 2sum(value, e.acs)) # impose constraint that spectral densities are positive functions
 spectrum_at_zero(e::ExactESS) = abs2(e.σ) * std_spectrum_at_zero(e)
 relative_ESS(e::ExactESS) = inv(std_spectrum_at_zero(e))
 OnlineStatsBase.value(e::ExactESS) = nobs(e) * relative_ESS(e)
@@ -38,11 +36,10 @@ function OnlineStatsBase._fit!(e::ExactESS, y)
     fit!(e.buffer, z)                   # add standardized obs to the circular buffer
 end
 
-
 # test
 vals = randn(100000)
-# vals = range(0.0,5.0,length=100000)
-e = ExactESS(0, 1; K=4)
+vals = range(0.0,5.0,length=100000)
+e = ExactESS(0, 1)
 fit!(e, vals)
 value.(e.acs)
 std_spectrum_at_zero(e)
