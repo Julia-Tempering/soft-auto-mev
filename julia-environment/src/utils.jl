@@ -119,7 +119,9 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
     jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
 	if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
 		SliceSampler(n_passes=1)
-	elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
+    elseif sampler_str == "HitAndRunSlicer"
+        HitAndRunSlicer(n_refresh=1)
+    elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
 		selector = selector_str == "inverted" ?
 			autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
 		int_time = if int_time_str == "single_step"
@@ -136,7 +138,7 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
 	elseif sampler_str == "SimpleRWMH"
 		selector = selector_str == "inverted" ?
 			autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
-		SimpleRWMH(step_size_selector = selector, step_jitter_dist = jitter)
+		SimpleRWMH(n_refresh=1, step_size_selector = selector, step_jitter_dist = jitter)
 	else
 		throw(ArgumentError("unknown sampler $sampler_str"))
 	end

@@ -5,7 +5,7 @@ def variables = [
     dim: (1..15).collect{ 1 << it }, // bitshift
     seed: (1..30),
     model: ["normal", "banana", "funnel"],
-    sampler_type: ["SimpleRWMH", "NUTS", "SimpleAHMC"], // autoMALA is SimpleAHMC + single_step
+    sampler_type: ["SimpleRWMH", "NUTS", "SimpleAHMC", "HitAndRunSlicer"], // autoMALA is SimpleAHMC + single_step
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"],
     logstep_jitter: ["none", "normal"]
