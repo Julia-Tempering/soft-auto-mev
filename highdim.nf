@@ -29,8 +29,8 @@ workflow {
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() }
         // int_time is only relevant for autoHMC
         .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() }
-        // non-trivial jitter breaks with multi step (i.e., HMC)
-        .filter { (it.sampler_type.startsWith("Simple") && it.int_time == "single_step") || it.logstep_jitter == variables.logstep_jitter.first() }
+        // step jitter only relevant for auto types
+        .filter { it.sampler_type.startsWith("Simple") || it.logstep_jitter == variables.logstep_jitter.first() }
     	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
