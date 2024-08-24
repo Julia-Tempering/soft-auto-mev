@@ -8,6 +8,7 @@ using Random
 using SplittableRandoms: SplittableRandom
 using Statistics
 using StanSample
+using JSON
 
 using Pigeons
 using autoHMC
@@ -98,7 +99,16 @@ function min_ess_all_methods(samples, model)
             rethrow(e)
         end
     end
-    min(special_margin_ess, min(min_ess_chains(samples), min_ess_batch(samples)))
+    batch_min_ess = try
+        special_margin_mean_std(model)
+    catch e
+        if e isa KeyError
+            Inf
+        else
+            min_ess_batch(samples)
+        end
+    end
+    min(special_margin_ess, min(min_ess_chains(samples), batch_min_ess))
 end
 
 # returns ESS, mean and var
@@ -294,6 +304,18 @@ function model_string(model; dataset=nothing, kwargs...)
     if startswith(model, "eight_schools_") 
         return read(joinpath(pigeons_stan_dir,"$model.stan"), String)
     end
+    if startswith(model, "earn_height")
+        return read(joinpath(base_dir(), "data", "earn_height.stan"), String)
+    end
+    if startswith(model, "nes")
+        return read(joinpath(base_dir(), "data", "nes.stan"), String)
+    end
+    if startswith(model, "diamonds")
+        return read(joinpath(base_dir(), "data", "diamonds.stan"), String)
+    end
+    if startswith(model, "hmm_example")
+        return read(joinpath(base_dir(), "data", "hmm_example.stan"), String)
+    end
     model_class = first(split(model,"_"))
     if model_class in ("banana","funnel") 
         return read(joinpath(pigeons_stan_dir,"$model_class.stan"), String)
@@ -317,6 +339,14 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     elseif startswith(model,"eight_schools")
         Dict("J" => 8, "y" => [28, 8, -3, 7, -1, 1, 18, 12],
         "sigma" => [15, 10, 16, 11, 9, 11, 10, 18])
+    elseif startswith(model, "earn_height")
+        JSON.parse(read(joinpath(base_dir(), "data", "earnings.json"), String))
+    elseif startswith(model,"nes")
+        JSON.parse(read(joinpath(base_dir(), "data", "nes2000.json"), String))
+    elseif startswith(model,"diamonds")
+        JSON.parse(read(joinpath(base_dir(), "data", "diamonds.json"), String))
+    elseif startswith(model,"hmm_example")
+        JSON.parse(read(joinpath(base_dir(), "data", "hmm_example.json"), String))
     elseif model == "mRNA"
         dta = DataFrame(CSV.File(joinpath(base_dir(), "data", "transfection.csv")))
         Dict("N" => nrow(dta), "ts" => dta[:,1], "ys" => dta[:,3])
