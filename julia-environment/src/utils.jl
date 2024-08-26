@@ -307,16 +307,16 @@ function model_string(model; dataset=nothing, kwargs...)
         return read(joinpath(pigeons_stan_dir,"$model.stan"), String)
     end
     if startswith(model, "earn_height")
-        return read(joinpath(base_dir(), "data", "earn_height.stan"), String)
+        return read(joinpath(base_dir(), "stan", "earn_height.stan"), String)
     end
     if startswith(model, "nes")
-        return read(joinpath(base_dir(), "data", "nes.stan"), String)
+        return read(joinpath(base_dir(), "stan", "nes.stan"), String)
     end
     if startswith(model, "diamonds")
-        return read(joinpath(base_dir(), "data", "diamonds.stan"), String)
+        return read(joinpath(base_dir(), "stan", "diamonds.stan"), String)
     end
     if startswith(model, "hmm_example")
-        return read(joinpath(base_dir(), "data", "hmm_example.stan"), String)
+        return read(joinpath(base_dir(), "stan", "hmm_example.stan"), String)
     end
     model_class = first(split(model,"_"))
     if model_class in ("banana","funnel") 
