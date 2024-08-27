@@ -211,11 +211,11 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         pt.shared.explorer.step_size
     end
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
-    prop_log_diff = explorer isa SliceSampler ? zero(miness) : 
+    acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
         first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
-        n_steps=n_steps, miness=miness, prop_log_diff=prop_log_diff, step_size=step_size)
+        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size)
     return samples, stats_df
 end
 
@@ -256,7 +256,7 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
     var_1st_dim = var(samples[:, 1])
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
-        n_steps=n_steps, miness=miness, prop_log_diff=zero(miness), step_size=info[end, 3])
+        n_steps=n_steps, miness=miness, acceptance_prob=zero(miness), step_size=info[end, 3])
     return samples, stats_df
 end
 
