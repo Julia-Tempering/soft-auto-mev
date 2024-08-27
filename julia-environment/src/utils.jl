@@ -44,6 +44,20 @@ special_margin_mean_std(model::String, args...) =
         (1, 0., 1.)
     elseif startswith(model, "two_component_normal")
         (1, 0., first(two_component_normal_stdevs(args...)) ) # the margin with the largest stdev
+    elseif startswith(model,"eight_school_noncentered")
+        (1, 0.316857, 0.988146)
+    elseif startswith(model, "garch11")
+        (1, 5.05101, 0.12328)
+    elseif startswith(model, "gp_pois_regr") 
+        (1, 5.68368, 0.708641)
+    elseif startswith(model, "lotka_volterra")
+        (1, 0.547547, 0.0636274)
+    elseif startswith(model, "kilpisjarvi") 
+        (1, -58.2412, 30.3941)
+    elseif startswith(model, "logearn_logheight_male")
+        (1, 3.64354, 2.71194)
+    elseif startswith(model, "diamonds")
+        (1, 6.72838, 0.22442)
     else
         throw(KeyError(model))
     end
@@ -99,16 +113,7 @@ function min_ess_all_methods(samples, model)
             rethrow(e)
         end
     end
-    batch_min_ess = try
-        special_margin_mean_std(model)
-    catch e
-        if e isa KeyError
-            Inf
-        else
-            min_ess_batch(samples)
-        end
-    end
-    min(special_margin_ess, min(min_ess_chains(samples), batch_min_ess))
+    min(special_margin_ess, min(min_ess_chains(samples), min_ess_batch(samples)))
 end
 
 # returns ESS, mean and var
@@ -166,7 +171,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     recorders = [
         record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
-        Pigeons.reversibility_rate
+        Pigeons.reversibility_rate; online
     ]
     pt = PT(Inputs(
         target      = target, 
@@ -196,13 +201,21 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
     end
-    step_size = explorer isa SliceSampler ? pt.shared.explorer.w : pt.shared.explorer.step_size
+    mean_1st_dim = first(mean(pt))
+    var_1st_dim = first(var(pt))
+    step_size = if explorer isa SliceSampler
+        pt.shared.explorer.w
+    elseif explorer isa HitAndRunSlicer
+        pt.shared.explorer.slicer.w
+    else
+        pt.shared.explorer.step_size
+    end
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     prop_log_diff = explorer isa SliceSampler ? zero(miness) : 
-        first(Pigeons.recorder_values(pt, :explorer_proposal_log_diff))
+        first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
     stats_df = DataFrame(
-        time=time, n_steps=n_steps, miness=miness, 
-        prop_log_diff=prop_log_diff, step_size=step_size)
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
+        n_steps=n_steps, miness=miness, prop_log_diff=prop_log_diff, step_size=step_size)
     return samples, stats_df
 end
 
@@ -239,9 +252,11 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
         """
         n_samples *= 2 
     end
+    mean_1st_dim = mean(samples[:, 1])
+    var_1st_dim = var(samples[:, 1])
     stats_df = DataFrame(
-        time=time, n_steps=n_steps, miness=miness, 
-        prop_log_diff=zero(miness), step_size=info[end, 3])
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
+        n_steps=n_steps, miness=miness, prop_log_diff=zero(miness), step_size=info[end, 3])
     return samples, stats_df
 end
 
@@ -318,6 +333,24 @@ function model_string(model; dataset=nothing, kwargs...)
     if startswith(model, "hmm_example")
         return read(joinpath(base_dir(), "stan", "hmm_example.stan"), String)
     end
+    if startswith(model, "eight_school_noncentered")
+        return read(joinpath(base_dir(), "stan", "eight_schools_noncentered.stan"), String)
+    end
+    if startswith(model, "garch11")
+        return read(joinpath(base_dir(), "stan", "garch11.stan"), String)
+    end
+    if startswith(model, "gp_pois_regr")
+        return read(joinpath(base_dir(), "stan", "gp_pois_regr.stan"), String)
+    end
+    if startswith(model, "lotka_volterra")
+        return read(joinpath(base_dir(), "stan", "lotka_volterra.stan"), String)
+    end
+    if startswith(model, "kilpisjarvi")
+        return read(joinpath(base_dir(), "stan", "kilpisjarvi.stan"), String)
+    end
+    if startswith(model, "logearn_logheight_male")
+        return read(joinpath(base_dir(), "stan", "logearn_logheight_male.stan"), String)
+    end
     model_class = first(split(model,"_"))
     if model_class in ("banana","funnel") 
         return read(joinpath(pigeons_stan_dir,"$model_class.stan"), String)
@@ -349,6 +382,18 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
         JSON.parse(read(joinpath(base_dir(), "data", "diamonds.json"), String))
     elseif startswith(model,"hmm_example")
         JSON.parse(read(joinpath(base_dir(), "data", "hmm_example.json"), String))
+    elseif startswith(model, "eight_school_noncentered")
+        JSON.parse(read(joinpath(base_dir(), "data", "eight_schools.json"), String))
+    elseif startswith(model,"garch11")
+        JSON.parse(read(joinpath(base_dir(), "data", "garch.json"), String))
+    elseif startswith(model,"gp_pois_regr")
+        JSON.parse(read(joinpath(base_dir(), "data", "gp_pois_regr.json"), String))
+    elseif startswith(model,"lotka_volterra")
+        JSON.parse(read(joinpath(base_dir(), "data", "hudson_lynx_hare.json"), String))
+    elseif startswith(model, "kilpisjarvi")
+        JSON.parse(read(joinpath(base_dir(), "data", "kilpisjarvi_mod.json"), String))
+    elseif startswith(model,"logearn_logheight_male")
+        JSON.parse(read(joinpath(base_dir(), "data", "earnings.json"), String))
     elseif model == "mRNA"
         dta = DataFrame(CSV.File(joinpath(base_dir(), "data", "transfection.csv")))
         Dict("N" => nrow(dta), "ts" => dta[:,1], "ys" => dta[:,3])
