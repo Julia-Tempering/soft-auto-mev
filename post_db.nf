@@ -7,7 +7,7 @@ def variables = [
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "HitAndRunSlicer"], //
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
-    logstep_jitter: ["none", "normal"]
+    logstep_jitter: ["none", "fixed", "adapt"]
 ]
 
 model_string = [

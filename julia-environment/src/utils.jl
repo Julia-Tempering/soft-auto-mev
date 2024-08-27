@@ -131,7 +131,8 @@ end
 ###############################################################################
 
 function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
-    jitter = jitter_str == "normal" ? Normal(0.0, 0.5) : Dirac(0.0)
+    jitter_dist = jitter_str == "none" ? Dirac(0.0) : Normal(0.0, 0.5)
+
 	if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
 		SliceSampler(n_passes=1)
     elseif sampler_str == "HitAndRunSlicer"
@@ -146,14 +147,21 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
         else
             autoHMC.AdaptiveRandomIntegrationTime()
         end
+        step_jitter = autoHMC.StepJitter(
+            dist = jitter_dist,
+            adapt_strategy = jitter_str == "adapt" ? autoHMC.AdaptativeStepJitter() : autoHMC.FixedStepJitter()
+        )
 		SimpleAHMC(
-			n_refresh=1, int_time = int_time, step_size_selector = selector,
-			step_jitter_dist = jitter
-		)
+			n_refresh=1, int_time = int_time, step_size_selector = selector, step_jitter = step_jitter
+        )
 	elseif sampler_str == "SimpleRWMH"
 		selector = selector_str == "inverted" ?
 			autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
-		SimpleRWMH(n_refresh=1, step_size_selector = selector, step_jitter_dist = jitter)
+        step_jitter = autoRWMH.StepJitter(
+            dist = jitter_dist,
+            adapt_strategy = jitter_str == "adapt" ? autoRWMH.AdaptativeStepJitter() : autoRWMH.FixedStepJitter()
+        )
+		SimpleRWMH(n_refresh=1, step_size_selector = selector, step_jitter = step_jitter)
 	else
 		throw(ArgumentError("unknown sampler $sampler_str"))
 	end
