@@ -227,6 +227,52 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     return samples, stats_df
 end
 
+
+# record the jitter distribution for each round for the adaptive_jitter explorer
+function pt_sample_from_model_round_by_round(model, target, seed, explorer, max_rounds)
+    n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
+    recorders = [
+        record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
+        Pigeons.reversibility_rate; online
+    ]
+    pt = PT(Inputs(
+        target      = target, 
+        seed        = seed,
+        n_rounds    = n_rounds,
+        n_chains    = 1, 
+        record      = recorders,
+        explorer    = explorer, 
+        show_report = true
+    ))
+    stats_df = DataFrame(
+        mean_1st_dim = [], var_1st_dim = [], jitter_std = [], time=[], n_rounds = [], acceptance_prob=[], step_size=[])
+
+    # run until max_rounds
+    local samples
+    while n_rounds ≤ max_rounds # bail after this point
+        pt = pigeons(pt)
+        samples = get_sample(pt) # only from last round
+        pt = Pigeons.increment_n_rounds!(pt, 1)
+        n_rounds += 1 
+        mean_1st_dim = first(mean(pt))
+        var_1st_dim = first(var(pt))
+        jitter_std = std(pt.shared.explorer.step_jitter.dist) #record the std of jitter distribution (has to be normal)
+        step_size = if explorer isa SliceSampler
+            pt.shared.explorer.w
+        elseif explorer isa HitAndRunSlicer
+            pt.shared.explorer.slicer.w
+        else
+            pt.shared.explorer.step_size
+        end
+        time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
+        acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
+            first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
+        push!(stats_df, (mean_1st_dim, var_1st_dim, jitter_std, time, n_rounds, acceptance_prob, step_size))
+    end
+
+    return samples, stats_df
+end
+
 #######################################
 # cmdstan
 #######################################
