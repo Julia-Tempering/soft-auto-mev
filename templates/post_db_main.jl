@@ -17,7 +17,7 @@ function main()
 		explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}"
 	)
 	model = "${arg.model}"
-	target = ${model_string[arg.model]}
+	target = stan_logpotential(model)
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
