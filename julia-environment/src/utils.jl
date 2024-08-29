@@ -131,7 +131,17 @@ end
 ###############################################################################
 
 function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
-    jitter_dist = jitter_str == "none" ? Dirac(0.0) : Normal(0.0, 0.5)
+    jitter_dist = if jitter_str == "none"
+        Dirac(0.0)
+    elseif jitter_str == "0.1"
+        Normal(0.0, 0.1)
+    elseif jitter_str == "1.0"
+        Normal(0.0, 1.0)
+    elseif jitter_str == "2.0"
+        Normal(0.0, 2.0)
+    else
+        Normal(0.0, 0.5)
+    end
 
 	if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
 		SliceSampler(n_passes=1)
@@ -221,8 +231,9 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
         first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
+    jitter_std = pt.shared.explorer.step_jitter.dist isa Normal ? std(pt.shared.explorer.step_jitter.dist) : 0
     stats_df = DataFrame(
-        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, 
         n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size)
     return samples, stats_df
 end
