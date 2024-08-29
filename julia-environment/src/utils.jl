@@ -59,6 +59,8 @@ special_margin_mean_std(model::String, args...) =
         (1, 3.64354, 2.71194)
     elseif startswith(model, "diamonds")
         (1, 6.72838, 0.22442)
+    elseif model == "mRNA"
+        (3, -1.8909, 1.0014) # 3 => log(beta), hardest to sample together with delta
     else
         throw(KeyError(model))
     end
@@ -428,10 +430,12 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
 end
 
 # utility for creating StanLogPotentials for real data models
-# idea: reuse the machinery for cmdstan, to minimize divergence
+# (or basically any model that does not have already a StanLogPotential defined in Pigeons)
+# IDEA: reuse the machinery for cmdstan, to minimize divergence
+# also forces use of temp file; this avoids race conditions when
+# multiple nodes are compiling a file in a shared location (like base_dir()/stan)
 function stan_logpotential(model)
     tmpdir = mktempdir()
-    # @info "$tmpdir"
     isdir(tmpdir) || mkdir(tmpdir)
     
     # write .stan file
@@ -440,7 +444,6 @@ function stan_logpotential(model)
     open(stan_fname, "w") do f
         write(f, model_str)
     end
-    # println(read(stan_fname, String))
 
     # write .json file    
     data_str = json(stan_data(model))
@@ -448,7 +451,8 @@ function stan_logpotential(model)
     open(data_fname, "w") do f
         write(f, data_str)
     end
-    # println(read(data_fname, String))
+
+    # build the log potential
     StanLogPotential(stan_fname, data_fname)
 end
 

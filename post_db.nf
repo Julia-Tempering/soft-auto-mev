@@ -3,7 +3,7 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["eight_schools_noncentered", "garch11", "gp_pois_regr", "lotka_volterra", "kilpisjarvi", "logearn_logheight_male", "diamonds"], // # parameters = 18, 4, 24, 90, 3, 4, 27
+    model: ["mRNA", "eight_schools_noncentered", "garch11", "gp_pois_regr", "lotka_volterra", "kilpisjarvi", "logearn_logheight_male", "diamonds"], // # parameters = 5, 18, 4, 24, 90, 3, 4, 27
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "HitAndRunSlicer"], //
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
