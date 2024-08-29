@@ -14,8 +14,8 @@ model_string = [
     normal: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 3)",
     funnel: "Pigeons.stan_funnel(3, 3.0)", // NB: funnel and banana have extra parameter
     banana: "Pigeons.stan_banana(3, 3.0)",
-    kilpisjarvi: "StanLogPotential(joinpath(\"$baseDir\", \"stan/kilpisjarvi.stan\"),joinpath(\"$baseDir\", \"data/kilpisjarvi_mod.json\"))",
-    logearn_logheight_male: "StanLogPotential(joinpath(\"$baseDir\", \"stan/logearn_logheight_male.stan\"),joinpath(\"$baseDir\", \"data/earnings.json\"))"
+    kilpisjarvi: "stan_logpotential(model)",
+    logearn_logheight_male: "stan_logpotential(model)"
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768

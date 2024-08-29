@@ -1,6 +1,7 @@
 using CSV 
 using DataFrames
 using Dates
+using DelimitedFiles
 using Distributions
 using MCMCChains
 using BridgeStan
@@ -44,7 +45,7 @@ special_margin_mean_std(model::String, args...) =
         (1, 0., 1.)
     elseif startswith(model, "two_component_normal")
         (1, 0., first(two_component_normal_stdevs(args...)) ) # the margin with the largest stdev
-    elseif startswith(model,"eight_school_noncentered")
+    elseif startswith(model,"eight_schools_noncentered")
         (1, 0.316857, 0.988146)
     elseif startswith(model, "garch11")
         (1, 5.05101, 0.12328)
@@ -133,24 +134,18 @@ end
 function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
     jitter_dist = if jitter_str == "none"
         Dirac(0.0)
-    elseif jitter_str == "0.1"
-        Normal(0.0, 0.1)
-    elseif jitter_str == "1.0"
-        Normal(0.0, 1.0)
-    elseif jitter_str == "2.0"
-        Normal(0.0, 2.0)
     else
-        Normal(0.0, 0.5)
+        Normal(0.0,  jitter_str == "adapt" ? 0.5 : parse(Float64, jitter_str))
     end
 
-	if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
-		SliceSampler(n_passes=1)
+    if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
+	SliceSampler(n_passes=1)
     elseif sampler_str == "HitAndRunSlicer"
         HitAndRunSlicer(n_refresh=1)
     elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
-		selector = selector_str == "inverted" ?
-			autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
-		int_time = if int_time_str == "single_step"
+	selector = selector_str == "inverted" ?
+	    autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
+	int_time = if int_time_str == "single_step"
             autoHMC.FixedIntegrationTime()                            # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
         elseif int_time_str == "fixed"
             autoHMC.AdaptiveFixedIntegrationTime()
@@ -165,8 +160,8 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
 			n_refresh=1, int_time = int_time, step_size_selector = selector, step_jitter = step_jitter
         )
 	elseif sampler_str == "SimpleRWMH"
-		selector = selector_str == "inverted" ?
-			autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
+	    selector = selector_str == "inverted" ?
+	        autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
         step_jitter = autoRWMH.StepJitter(
             dist = jitter_dist,
             adapt_strategy = jitter_str == "adapt" ? autoRWMH.AdaptativeStepJitter() : autoRWMH.FixedStepJitter()
@@ -357,70 +352,33 @@ function get_scale(scale_idx, model_name)
 	end
 end
 
+# returns a string with the stan code for a model
 function model_string(model; dataset=nothing, kwargs...)
-    if model == "normal" # dont have the standard normal on Pigeons examples
-        return "data {
-          int<lower=1> dim;
-        }
-        parameters {
-          vector[dim] x;
-        }
-        model {
-          x ~ std_normal();
-        }"
-    end
-    if startswith(model, "two_component_normal")
-        return read(joinpath(
-            base_dir(), "stan", "two_component_normal.stan"), String)
-    end
-    if startswith(model, "horseshoe")
+    # first: try models in the local stan folder
+    file_name = if startswith(model, "horseshoe")
         is_logit = any(Base.Fix1(startswith,dataset), ("prostate", "ionosphere", "sonar"))
-        return read(joinpath(
-            base_dir(), "stan", "horseshoe_" * (is_logit ? "logit" : "linear") * ".stan"
-        ), String)
+        "horseshoe_" * (is_logit ? "logit" : "linear")
+    else
+        model
     end
-    if model == "mRNA"
-        return read(joinpath(base_dir(), "stan", "mRNA.stan"), String)
+    model_str = try
+        read(joinpath(base_dir(), "stan", file_name * ".stan"), String)
+    catch e
+        e isa SystemError || rethrow(e)
+        ""
     end
-    pigeons_stan_dir = joinpath(dirname(dirname(pathof(Pigeons))),"examples","stan")
-    if startswith(model, "eight_schools_") 
-        return read(joinpath(pigeons_stan_dir,"$model.stan"), String)
-    end
-    if startswith(model, "earn_height")
-        return read(joinpath(base_dir(), "stan", "earn_height.stan"), String)
-    end
-    if startswith(model, "nes")
-        return read(joinpath(base_dir(), "stan", "nes.stan"), String)
-    end
-    if startswith(model, "diamonds")
-        return read(joinpath(base_dir(), "stan", "diamonds.stan"), String)
-    end
-    if startswith(model, "hmm_example")
-        return read(joinpath(base_dir(), "stan", "hmm_example.stan"), String)
-    end
-    if startswith(model, "eight_school_noncentered")
-        return read(joinpath(base_dir(), "stan", "eight_schools_noncentered.stan"), String)
-    end
-    if startswith(model, "garch11")
-        return read(joinpath(base_dir(), "stan", "garch11.stan"), String)
-    end
-    if startswith(model, "gp_pois_regr")
-        return read(joinpath(base_dir(), "stan", "gp_pois_regr.stan"), String)
-    end
-    if startswith(model, "lotka_volterra")
-        return read(joinpath(base_dir(), "stan", "lotka_volterra.stan"), String)
-    end
-    if startswith(model, "kilpisjarvi")
-        return read(joinpath(base_dir(), "stan", "kilpisjarvi.stan"), String)
-    end
-    if startswith(model, "logearn_logheight_male")
-        return read(joinpath(base_dir(), "stan", "logearn_logheight_male.stan"), String)
-    end
+    isempty(model_str) || return model_str
+    
+    # now see if we find it in Pigeons' examples dir
+    pigeons_stan_dir = joinpath(pkgdir(Pigeons), "examples", "stan")
     model_class = first(split(model,"_"))
-    if model_class in ("banana","funnel") 
-        return read(joinpath(pigeons_stan_dir,"$model_class.stan"), String)
+    file_name = if model_class in ("banana","funnel") 
+        model_class
+    else
+        model
     end
-    error("model_string: model $model unknown")
+    model_str = read(joinpath(pigeons_stan_dir, file_name * ".stan"), String)
+    return model_str
 end
 
 function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing) 
@@ -439,33 +397,60 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     elseif startswith(model,"eight_schools")
         Dict("J" => 8, "y" => [28, 8, -3, 7, -1, 1, 18, 12],
         "sigma" => [15, 10, 16, 11, 9, 11, 10, 18])
-    elseif startswith(model, "earn_height")
-        JSON.parse(read(joinpath(base_dir(), "data", "earnings.json"), String))
-    elseif startswith(model,"nes")
-        JSON.parse(read(joinpath(base_dir(), "data", "nes2000.json"), String))
-    elseif startswith(model,"diamonds")
-        JSON.parse(read(joinpath(base_dir(), "data", "diamonds.json"), String))
-    elseif startswith(model,"hmm_example")
-        JSON.parse(read(joinpath(base_dir(), "data", "hmm_example.json"), String))
-    elseif startswith(model, "eight_school_noncentered")
-        JSON.parse(read(joinpath(base_dir(), "data", "eight_schools.json"), String))
-    elseif startswith(model,"garch11")
-        JSON.parse(read(joinpath(base_dir(), "data", "garch.json"), String))
-    elseif startswith(model,"gp_pois_regr")
-        JSON.parse(read(joinpath(base_dir(), "data", "gp_pois_regr.json"), String))
-    elseif startswith(model,"lotka_volterra")
-        JSON.parse(read(joinpath(base_dir(), "data", "hudson_lynx_hare.json"), String))
-    elseif startswith(model, "kilpisjarvi")
-        JSON.parse(read(joinpath(base_dir(), "data", "kilpisjarvi_mod.json"), String))
-    elseif startswith(model,"logearn_logheight_male")
-        JSON.parse(read(joinpath(base_dir(), "data", "earnings.json"), String))
     elseif model == "mRNA"
-        dta = DataFrame(CSV.File(joinpath(base_dir(), "data", "transfection.csv")))
-        Dict("N" => nrow(dta), "ts" => dta[:,1], "ys" => dta[:,3])
+        Dict(pairs(mrna_load_data()))
     else
-        error("stan_data: unknown model $model") 
+        file_name = if startswith(model, "earn_height")
+            "earnings"
+        elseif startswith(model,"nes")
+            "nes2000"
+        elseif startswith(model,"diamonds")
+            "diamonds"
+        elseif startswith(model,"hmm_example")
+            "hmm_example"
+        elseif startswith(model, "eight_schools_noncentered")
+            "eight_schools"
+        elseif startswith(model,"garch11")
+            "garch"
+        elseif startswith(model,"gp_pois_regr")
+            "gp_pois_regr"
+        elseif startswith(model,"lotka_volterra")
+            "hudson_lynx_hare"
+        elseif startswith(model, "kilpisjarvi")
+            "kilpisjarvi_mod"
+        elseif startswith(model,"logearn_logheight_male")
+            "earnings.json"
+        else
+            error("unknown model $model")
+        end
+        JSON.parse(read(joinpath(base_dir(), "data", file_name * ".json"), String))
     end 
-end 
+end
+
+# utility for creating StanLogPotentials for real data models
+# idea: reuse the machinery for cmdstan, to minimize divergence
+function stan_logpotential(model)
+    tmpdir = mktempdir()
+    # @info "$tmpdir"
+    isdir(tmpdir) || mkdir(tmpdir)
+    
+    # write .stan file
+    model_str = model_string(model)
+    stan_fname = joinpath(tmpdir, model * ".stan")
+    open(stan_fname, "w") do f
+        write(f, model_str)
+    end
+    # println(read(stan_fname, String))
+
+    # write .json file    
+    data_str = json(stan_data(model))
+    data_fname = joinpath(tmpdir, model * ".json")
+    open(data_fname, "w") do f
+        write(f, data_str)
+    end
+    # println(read(data_fname, String))
+    StanLogPotential(stan_fname, data_fname)
+end
 
 # Two component normal for testing preconditioner
 two_component_normal_stdevs(e::Real) = (10. ^(e), 10. ^(-e))
@@ -512,4 +497,14 @@ function make_HSP_target(dataset::String, n_obs::Int=typemax(Int))
         base_dir(), "stan", "horseshoe_" * (is_logit ? "logit" : "linear") * ".stan"
     ), json_str)
 end
+
+function mrna_load_data()
+    dta_path = joinpath(pkgdir(Pigeons), "examples", "data", "Ballnus_et_al_2017_M1a.csv")
+    dta = readdlm(dta_path, ',')
+    N   = size(dta, 1)
+    ts  = dta[:,1]
+    ys  = dta[:,2]
+    return (;N = N, ts = ts, ys = ys)
+end
+
 
