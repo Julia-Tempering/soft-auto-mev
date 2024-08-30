@@ -116,15 +116,9 @@ jitter-stability plots
 =#
 
 function jitter_stability_plots_model(experiment::String)
-    base_df = get_summary_df(experiment)
-    idxs = @. base_df.sampler_type == "SimpleAHMC" && base_df.int_time == "single_step"
-    base_df[idxs, :sampler_type] .= "autoMALA"
-    idxs = @. base_df.sampler_type == "SimpleAHMC"
-    base_df[idxs, :sampler_type] .= "autoHMC"
-    idxs = @. base_df.sampler_type == "SimpleRWMH"
-    base_df[idxs, :sampler_type] .= "autoRWMH"
-
+    base_df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
+    base_df = filter(row -> row.logstep_jitter == "adapt", base_df) # only consider stability for adaptive jitter
 
     unique_samplers = unique(base_df[:, :sampler_type])
 

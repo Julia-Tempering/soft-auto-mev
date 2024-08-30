@@ -21,7 +21,11 @@ function main()
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
-	samples, stats_df = pt_sample_from_model(model, target, seed, explorer, miness_threshold)
+	samples, stats_df = if "${arg.logstep_jitter}" != "adapt" #only record the last round
+		pt_sample_from_model(model, target, seed, explorer, miness_threshold)
+	else # also record the jitter std at each round
+		pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold)
+	end
 
 	isdir("csvs") || mkdir("csvs")
 	CSV.write("csvs/summary.csv", stats_df)
