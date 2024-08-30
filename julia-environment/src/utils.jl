@@ -311,7 +311,8 @@ function nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^2
         time += @elapsed run(cmd)
         info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
         n_steps += sum(info.n_leapfrog__) # count leapfrogs (including warmup)
-        samples = info[(sm.num_warmups+1):end, 8:end] # discard 7 auxiliary variables + warmup
+        col_idxs = push!(collect(8:size(info, 2)), 1)    # discard 7 aux vars, add model variables, then add back logprob at the end 
+        samples = info[(sm.num_warmups+1):end, col_idxs] # discard warmup
         miness = min_ess_all_methods(samples, model)
         miness > miness_threshold && break
         @info """
