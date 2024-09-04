@@ -10,12 +10,14 @@ end
 
 function get_sample_scatter(selector, ax)
     pt = pigeons(
-        target     = Pigeons.stan_banana(1, 3.0),
+        target     = Pigeons.ScaledPrecisionNormalPath(2.0, 1.0, 2),
         seed       = 1,
-        n_rounds   = 12,
+        n_rounds   = 13,
         n_chains   = 1, 
         record     = [record_default(); Pigeons.traces; online],
-        explorer   = SimpleRWMH(step_size_selector = get_selector(selector)),
+        explorer   = SimpleRWMH(step_size_selector = get_selector(selector),
+                                step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0),
+                                adapt_strategy = autoRWMH.FixedStepJitter())),
         show_report = true
     )
     
@@ -38,8 +40,8 @@ end
 fig = Figure(resolution = (800, 400))
 
 # Create two axes side by side
-ax1 = Axis(fig[1, 1], xlabel="Iteration", ylabel="Value", title="Trace Plot of autoRWMH")
-ax2 = Axis(fig[1, 2], xlabel="Iteration", ylabel="Value", title="Trace Plot of autoRWMH_inv")
+ax1 = Axis(fig[1, 1], xlabel="x1", ylabel="x2", title="Trace Plot of autoRWMH")
+ax2 = Axis(fig[1, 2], xlabel="x1", ylabel="x2", title="Trace Plot of autoRWMH_inv")
 
 # Generate and plot the samples for each selector on separate axes
 get_sample_scatter("autoRWMH", ax1)
@@ -47,4 +49,4 @@ get_sample_scatter("autoRWMH_inv", ax2)
 
 # Display the figure with both trace plots side by side
 # display(fig)
-save("deliverables/trace_plot/banana_trace_plot.png", fig)
+save("deliverables/trace_plot/gaussian_trace_plot.png", fig)

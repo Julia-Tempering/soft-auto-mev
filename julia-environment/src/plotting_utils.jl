@@ -134,8 +134,8 @@ function jitter_stability_plots_model(experiment::String)
 
         # Plot the data
         @df grouped_df StatsPlots.plot(:n_rounds, :jitter_std_mean, group=:model, lw=2, legend=:topright,
-            ribbon=:jitter_std_sem, xlabel="n_rounds", ylabel="Mean jitter_std", title="Mean + SE of jitter_std vs n_rounds",
-            markershape=:auto, linecolor=:auto)
+            ribbon=:jitter_std_sem, xlabel="n_rounds", ylabel="Mean jitter std (log scale)", title="Mean + SE of jitter_std vs n_rounds",
+            markershape=:auto, linecolor=:auto, yaxis=:log10, colormap = :viridis)
     
         savefig(joinpath(plots_path,"$(sampler)_jitter_evolution.png"))
     end
@@ -156,8 +156,9 @@ function sampler_comparison_plots_model(experiment::String)
         df = filter(:sampler_type => ==(my_sampler), base_df)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
-        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS / second", 
-            legend=:topleft, title="minESS per second Comparison for $(my_sampler)", color=:auto, xrotation = 20)
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS/second (log scale)", 
+            legend=:topleft, title="minESS per second Comparison for $(my_sampler)", color=:auto, xrotation = 20, yaxis=:log10,
+            colormap = :viridis)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
     end
 end
@@ -178,8 +179,9 @@ function jitter_comparison_plots_model(experiment::String)
         df = filter(:sampler_type => ==(my_sampler), base_df)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
-        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / second", 
-            legend=:topleft, title="minESS per second by Jitter for $(my_sampler)", color=:auto)
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / second(log scale)", 
+            legend=:topleft, title="minESS per second by Jitter for $(my_sampler)", color=:auto, yaxis=:log10,
+            colormap = :viridis)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
     end
 end
@@ -195,7 +197,8 @@ function all_comparison_plots_model(experiment::String)
     df = filter(row -> row.model ∉ ["eight_school_noncentered", "garch11"], df)
     sort!(df, :model) # ensure ordering on x-axis
     # Create the grouped boxplot
-    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS / second", 
-        legend=:topright, title="minESS per second for All Samplers", color=:auto)
+    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS / second(log scale)", 
+        legend=:topright, title="minESS per second for All Samplers", color=:auto, yaxis=:log10,
+        colormap = :viridis)
         savefig(joinpath(plots_path,"miness_comparison.png"))
 end

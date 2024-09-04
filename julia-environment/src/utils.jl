@@ -137,7 +137,7 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
     jitter_dist = if jitter_str == "none"
         Dirac(0.0)
     else
-        Normal(0.0,  jitter_str == "adapt" ? 0.5 : parse(Float64, jitter_str))
+        Normal(0.0, jitter_str in ["adapt", "fixed"] ? 0.5 : parse(Float64, jitter_str))
     end
 
     if sampler_str in ("SliceSampler", "NUTS")                        # irrelevant for NUTS since we use cmdstan
@@ -337,6 +337,45 @@ function stan_cmd(sm::SampleModel, n_samples, stan_seed; print_every=max(100, ro
     return cmd
 end
 
+# using NUTS in AdvancedHMC.jl built on Turing.jl
+function turing_nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^25, kwargs...)
+    # make model and data from the arguments
+    stan_model = model_string(model; kwargs...)
+    sm = SampleModel(model, stan_model) 
+    data = stan_data(model; kwargs...)
+    StanSample.update_json_files(sm, data, 1, "data")
+
+    
+
+    # run until minESS threshold is breached
+    n_samples = max(1000, ceil(Int, 10*miness_threshold)) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
+    n_steps = 0
+    miness = time = 0.0
+    local samples
+    local info
+    while n_samples < max_samples
+        cmd = stan_cmd(sm, n_samples, seed)
+        time += @elapsed run(cmd)
+        info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
+        n_steps += sum(info.n_leapfrog__) # count leapfrogs (including warmup)
+        col_idxs = push!(collect(8:size(info, 2)), 1)    # discard 7 aux vars, add model variables, then add back logprob at the end 
+        samples = info[(sm.num_warmups+1):end, col_idxs] # discard warmup
+        miness = min_ess_all_methods(samples, model)
+        miness > miness_threshold && break
+        @info """
+            Low ESS: miness = $miness < $miness_threshold = miness_threshold
+            Doubling n_samples and re-running.
+        """
+        n_samples *= 2 
+    end
+    mean_1st_dim = mean(samples[:, 1])
+    var_1st_dim = var(samples[:, 1])
+    stats_df = DataFrame(
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
+        n_steps=n_steps, miness=miness, acceptance_prob=zero(miness), step_size=info[end, 3])
+    return samples, stats_df
+end
+
 ###############################################################################
 # model utils
 ###############################################################################
@@ -400,7 +439,7 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     elseif model == "two_component_normal_scale"
         s_hi, s_lo = two_component_normal_stdevs(scale)
         Dict("n" => 1, "s_hi" => s_hi, "s_lo" => s_lo)
-    elseif model == "horseshoe"
+    elseif startswith(model, "horseshoe")
         x,y = isnothing(dim) ? make_HSP_data(dataset) : make_HSP_data(dataset,dim) # interpret dim as n_obs
         Dict("n" => length(y), "d" => size(x,2), "x" => x, "y" => y)
     elseif startswith(model,"eight_schools")
@@ -441,19 +480,19 @@ end
 # IDEA: reuse the machinery for cmdstan, to minimize divergence
 # also forces use of temp file; this avoids race conditions when
 # multiple nodes are compiling a file in a shared location (like base_dir()/stan)
-function stan_logpotential(model)
+function stan_logpotential(model; dataset = nothing)
     tmpdir = mktempdir()
     isdir(tmpdir) || mkdir(tmpdir)
     
     # write .stan file
-    model_str = model_string(model)
+    model_str = model_string(model; dataset = dataset)
     stan_fname = joinpath(tmpdir, model * ".stan")
     open(stan_fname, "w") do f
         write(f, model_str)
     end
 
     # write .json file    
-    data_str = json(stan_data(model))
+    data_str = json(stan_data(model; dataset = dataset))
     data_fname = joinpath(tmpdir, model * ".json")
     open(data_fname, "w") do f
         write(f, data_str)

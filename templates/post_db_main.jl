@@ -17,13 +17,15 @@ function main()
 		explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}"
 	)
 	model = "${arg.model}"
-	target = stan_logpotential(model)
+	target = startswith(model, "horseshoe") ? stan_logpotential(model; dataset = "sonar") : stan_logpotential(model)
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
 	samples, stats_df = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
-	else # use cmdstan for NUTS
+	elseif startswith(model, "horseshoe") # use cmdstan for NUTS
+		nuts_sample_from_model(model, seed, miness_threshold)
+	else
 	    nuts_sample_from_model(model, seed, miness_threshold)
 	end
 
