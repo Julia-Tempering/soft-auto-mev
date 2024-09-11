@@ -10,6 +10,7 @@ using SplittableRandoms: SplittableRandom
 using Statistics
 using StanSample
 using JSON
+using Turing
 
 using Pigeons
 using autoHMC
@@ -228,16 +229,17 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
         first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
-    jitter_std = pt.shared.explorer.step_jitter.dist isa Normal ? std(pt.shared.explorer.step_jitter.dist) : 0
+    jitter_std = isa(pt.shared.explorer, HitAndRunSlicer) ? 0 :
+        isa(pt.shared.explorer.step_jitter.dist, Normal) ? std(pt.shared.explorer.step_jitter.dist) : 0
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, 
-        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size)
+        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = n_rounds)
     return samples, stats_df
 end
 
 
 # record the jitter distribution for each round for the adaptive_jitter explorer
-function pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold; max_rounds = 25)
+function pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold; max_rounds = 20)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     recorders = [
         record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
@@ -254,7 +256,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
     ))
     stats_df = DataFrame(
         mean_1st_dim = [], var_1st_dim = [], time = [], jitter_std = [], n_steps = [], 
-        miness = [], acceptance_prob=[], step_size=[])
+        miness = [], acceptance_prob=[], step_size=[], n_rounds = [])
 
     # run until max_rounds
     n_steps = n_samples = 0
@@ -281,7 +283,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
         acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
             first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
-        push!(stats_df, (mean_1st_dim, var_1st_dim, time, jitter_std, n_steps, miness, acceptance_prob, step_size))
+        push!(stats_df, (mean_1st_dim, var_1st_dim, time, jitter_std, n_steps, miness, acceptance_prob, step_size, n_rounds))
     end
 
     return samples, stats_df
@@ -337,30 +339,24 @@ function stan_cmd(sm::SampleModel, n_samples, stan_seed; print_every=max(100, ro
     return cmd
 end
 
-# using NUTS in AdvancedHMC.jl built on Turing.jl
+# using NUTS in Turing.jl
 function turing_nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^25, kwargs...)
     # make model and data from the arguments
-    stan_model = model_string(model; kwargs...)
-    sm = SampleModel(model, stan_model) 
-    data = stan_data(model; kwargs...)
-    StanSample.update_json_files(sm, data, 1, "data")
-
-    
+    my_data = stan_data(model)
+    my_model = turing_nuts_model(model, my_data)
+    Random.seed!(seed)
 
     # run until minESS threshold is breached
-    n_samples = max(1000, ceil(Int, 10*miness_threshold)) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
+    n_samples = ceil(Int, 10*miness_threshold) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
     n_steps = 0
-    miness = time = 0.0
+    miness = my_time = 0.0
     local samples
-    local info
+    local chain
     while n_samples < max_samples
-        cmd = stan_cmd(sm, n_samples, seed)
-        time += @elapsed run(cmd)
-        info = DataFrame(CSV.File(joinpath(sm.tmpdir, model * "_chain_1.csv"), comment = "#"))
-        n_steps += sum(info.n_leapfrog__) # count leapfrogs (including warmup)
-        col_idxs = push!(collect(8:size(info, 2)), 1)    # discard 7 aux vars, add model variables, then add back logprob at the end 
-        samples = info[(sm.num_warmups+1):end, col_idxs] # discard warmup
-        miness = min_ess_all_methods(samples, model)
+        my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples) # reduce max_depth because NUTS is super slow
+        n_steps = sum(chain[:n_steps]) # count leapfrogs not including warmup
+        samples = [chain[param] for param in names(chain)[1:end-12]] # discard 12 aux vars
+        miness = minimum(DataFrame(ess(chain)).ess)
         miness > miness_threshold && break
         @info """
             Low ESS: miness = $miness < $miness_threshold = miness_threshold
@@ -368,11 +364,13 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
         """
         n_samples *= 2 
     end
-    mean_1st_dim = mean(samples[:, 1])
-    var_1st_dim = var(samples[:, 1])
+    mean_1st_dim = mean(samples[1])
+    var_1st_dim = var(samples[1])
+    acceptance_prob = mean(chain[:acceptance_rate])
+    step_size = mean(chain[:step_size])
     stats_df = DataFrame(
-        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, 
-        n_steps=n_steps, miness=miness, acceptance_prob=zero(miness), step_size=info[end, 3])
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, n_steps=n_steps, miness=miness, 
+        acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)))
     return samples, stats_df
 end
 
@@ -439,14 +437,14 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
     elseif model == "two_component_normal_scale"
         s_hi, s_lo = two_component_normal_stdevs(scale)
         Dict("n" => 1, "s_hi" => s_hi, "s_lo" => s_lo)
-    elseif startswith(model, "horseshoe")
-        x,y = isnothing(dim) ? make_HSP_data(dataset) : make_HSP_data(dataset,dim) # interpret dim as n_obs
-        Dict("n" => length(y), "d" => size(x,2), "x" => x, "y" => y)
+    #elseif startswith(model, "horseshoe")
+        #x,y = isnothing(dim) ? make_HSP_data(dataset) : make_HSP_data(dataset,dim) # interpret dim as n_obs
+        #Dict("n" => length(y), "d" => size(x,2), "x" => x', "y" => y)
     elseif startswith(model,"eight_schools")
         Dict("J" => 8, "y" => [28, 8, -3, 7, -1, 1, 18, 12],
         "sigma" => [15, 10, 16, 11, 9, 11, 10, 18])
-    elseif model == "mRNA"
-        Dict(pairs(mrna_load_data()))
+    #elseif model == "mRNA"
+        #Dict(pairs(mrna_load_data()))
     else
         file_name = if startswith(model, "earn_height")
             "earnings"
@@ -467,7 +465,11 @@ function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing)
         elseif startswith(model, "kilpisjarvi")
             "kilpisjarvi_mod"
         elseif startswith(model,"logearn_logheight_male")
-            "earnings.json"
+            "earnings"
+        elseif startswith(model, "horseshoe")
+            "sonar"
+        elseif startswith(model, "mRNA")
+            "mRNA"
         else
             error("unknown model $model")
         end
@@ -555,6 +557,116 @@ function mrna_load_data()
     ts  = dta[:,1]
     ys  = dta[:,2]
     return (;N = N, ts = ts, ys = ys)
+end
+
+# utility function to create models for Turing.NUTS()
+# !!! too redundant, will try to clean up later
+function turing_nuts_model(model, data)
+    if startswith(model, "diamonds")
+        @model function diamonds(Y, X, N, K)
+            # Data dimensions
+            Kc = K - 1
+            # Centered version of X without intercept
+            Xc = Matrix{Real}(undef, N, Kc)
+            means_X = Vector{Real}(undef, Kc)
+            for i in 2:K
+                means_X[i - 1] = mean(X[:, i])
+                Xc[:, i - 1] = X[:, i] .- means_X[i - 1]
+            end
+            # Parameters
+            b = Vector{Real}(undef, Kc)
+            Intercept ~ LocationScale(8, 10, TDist(3))  # Intercept
+            b .~ Normal(0, 1)  # Population-level effects
+            sigma ~ truncated(LocationScale(0, 10, TDist(3)), 0, Inf)  # Residual SD
+            # Likelihood
+            for i in 1:N
+                    Y[i] ~ Normal(sum(Xc[i, :].*b) + Intercept, sigma)
+            end
+        end
+        return diamonds(data["Y"], hcat(data["X"]...)', data["N"], data["K"])
+    elseif startswith(model, "horseshoe")
+        @model function horseshoe(x, y, n, d)
+            # Priors
+            tau ~ TDist(1)  # Cauchy(0, 1) equivalent to TDist with 1 degree of freedom
+            lambda ~ filldist(TDist(1), d)  # d-dimensional vector with Cauchy(0, 1)
+            beta0 ~ LocationScale(0, 1, TDist(3))  # Intercept with StudentT(3, 0, 1)
+            beta ~ MvNormal(zeros(d), tau * lambda)  # Multivariate normal with scale tau * lambda
+            
+            # Likelihood
+            for i in 1:n
+                y[i] ~ BernoulliLogit(beta0 + sum(x[i, :] .* beta))  # Logistic regression likelihood
+            end
+        end
+        return horseshoe(hcat(data["x"]...)', data["y"], data["n"], data["d"])
+    elseif startswith(model, "kilpisjarvi")
+        @model function kilpisjarvi(x, y, N, xpred, pmualpha, psalpha, pmubeta, psbeta)
+            # Priors
+            alpha ~ Normal(pmualpha, psalpha)  # Prior for alpha
+            beta ~ Normal(pmubeta, psbeta)     # Prior for beta
+            sigma ~ truncated(Normal(0, 1), 0, Inf)  # Prior for sigma, ensuring it's positive
+        
+            # Likelihood
+            for i in 1:N
+                y[i] ~ Normal(alpha + beta * x[i], sigma)  # Observations model
+            end
+        
+            # Predicted value at xpred (optional)
+            ypred = alpha + beta * xpred
+        end
+        return kilpisjarvi(data["x"], data["y"], data["N"], data["xpred"], data["pmualpha"], 
+                data["psalpha"], data["pmubeta"], data["psbeta"])
+    elseif startswith(model, "logearn_logheight_male")
+        @model function logearn(N, earn, height, male)
+            # Transformed data: log transformations
+            log_earn = log.(earn)
+            log_height = log.(height)
+            # Parameters
+            beta ~ MvNormal(zeros(3), ones(3))  # Prior for beta, assuming standard normal priors
+            sigma ~ truncated(Normal(0, 1), 0, Inf)  # Positive constraint for sigma
+            # Likelihood
+            for i in 1:N
+                log_earn[i] ~ Normal(beta[1] + beta[2] * log_height[i] + beta[3] * male[i], sigma)
+            end
+        end
+        return logearn(data["N"], data["earn"], data["height"], data["male"])
+    elseif startswith(model, "mRNA")
+        function exp_a_minus_exp_b(a, b)
+            return a > b ? -exp(a) * expm1(b - a) : exp(b) * expm1(a - b)
+        end
+        function get_mu(tmt0, km0, beta, delta)
+            if tmt0 <= 0.0
+                return 0.0  # must force mu=0 when t < t0 (reaction hasn't started)
+            end
+            dmb = delta - beta
+            if abs(dmb) < eps()  # `eps()` gives machine precision in Julia
+                return km0 * tmt0
+            else
+                return km0 * exp_a_minus_exp_b(-beta * tmt0, -delta * tmt0) / dmb
+            end
+        end
+        @model function mRNA_model(N, ts, ys)
+            # Parameters with transformations (log-transformed priors)
+            lt0 ~ Uniform(-2, 1)
+            lkm0 ~ Uniform(-5, 5)
+            lbeta ~ Uniform(-5, 5)
+            ldelta ~ Uniform(-5, 5)
+            lsigma ~ Uniform(-2, 2)
+            # Transformed parameters
+            t0 = 10.0^lt0
+            km0 = 10.0^lkm0
+            beta = 10.0^lbeta
+            delta = 10.0^ldelta
+            sigma = 10.0^lsigma
+            # Likelihood
+            for i in 1:N
+                mu_i = get_mu(ts[i] - t0, km0, beta, delta)
+                ys[i] ~ Normal(mu_i, sigma)
+            end
+        end
+        return mRNA_model(data["N"], data["ts"], data["ys"])
+    else
+        error("unknown model $model")
+    end
 end
 
 

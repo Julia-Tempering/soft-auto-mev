@@ -3,9 +3,9 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["horseshoe_linear", "mRNA", "kilpisjarvi", "logearn_logheight_male", "diamonds"], // # "eight_schools_noncentered", "garch11", "gp_pois_regr", "lotka_volterra"
-    sampler_type: ["SimpleAHMC", "SimpleRWMH", "NUTS", "HitAndRunSlicer"], //
-    selector: ["standard", "inverted"],
+    model: ["horseshoe_logit", "mRNA", "kilpisjarvi", "logearn_logheight_male", "diamonds"], // # "eight_schools_noncentered", "garch11", "gp_pois_regr", "lotka_volterra"
+    sampler_type: ["SimpleAHMC", "SimpleRWMH", "HitAndRunSlicer", "NUTS"], //
+    selector: ["inverted"], //"standard", 
     int_time: ["single_step", "rand"], // single_step gives autoMALA
     logstep_jitter: ["none", "fixed", "adapt"]
 ]

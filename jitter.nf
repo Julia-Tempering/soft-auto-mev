@@ -5,9 +5,9 @@ def variables = [
     seed: (1..30),
     model: ["funnel", "banana", "normal", "kilpisjarvi", "logearn_logheight_male"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH"], //
-    selector: ["standard", "inverted"],
+    selector: ["inverted"], // not considering "standard" selector here
     int_time: ["single_step", "rand"], // single_step gives autoMALA
-    logstep_jitter: ["none", "0.1", "0.5", "2.0", "4.0", "adapt"]
+    logstep_jitter: ["none", "0.1", "0.5", "2.0", "adapt"]
 ]
 
 model_string = [

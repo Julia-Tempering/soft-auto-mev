@@ -119,6 +119,7 @@ function jitter_stability_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
     base_df = filter(row -> row.logstep_jitter == "adapt", base_df) # only consider stability for adaptive jitter
+    base_df.jitter_std .= ifelse.(base_df.jitter_std .<= 0.0, 10^(-5), base_df.jitter_std) # prevent zero jitter std
 
     unique_samplers = unique(base_df[:, :sampler_type])
 
@@ -129,13 +130,12 @@ function jitter_stability_plots_model(experiment::String)
         # Group the data by 'model' and 'n_rounds', and calculate the mean and SEM for 'jitter_std'
         grouped_df = combine(groupby(df, [:model, :n_rounds]), 
                         :jitter_std => mean => :jitter_std_mean, 
-                        :jitter_std => (x -> std(x) / sqrt(length(x))) => :jitter_std_sem
-                    )
+                        :jitter_std => (x -> std(x) / sqrt(length(x))) => :jitter_std_sem)
 
         # Plot the data
         @df grouped_df StatsPlots.plot(:n_rounds, :jitter_std_mean, group=:model, lw=2, legend=:topright,
-            ribbon=:jitter_std_sem, xlabel="n_rounds", ylabel="Mean jitter std (log scale)", title="Mean + SE of jitter_std vs n_rounds",
-            markershape=:auto, linecolor=:auto, yaxis=:log10, colormap = :viridis)
+            ribbon=:jitter_std_sem, xlabel="n_steps", ylabel="Mean jitter std (log scale)", title="Mean + SE of jitter_std vs n_rounds",
+            yaxis=:log10, markershape=:auto, linecolor=:auto) #, xaxis=:log2
     
         savefig(joinpath(plots_path,"$(sampler)_jitter_evolution.png"))
     end
@@ -157,8 +157,7 @@ function sampler_comparison_plots_model(experiment::String)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
         @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS/second (log scale)", 
-            legend=:topleft, title="minESS per second Comparison for $(my_sampler)", color=:auto, xrotation = 20, yaxis=:log10,
-            colormap = :viridis)
+            legend=:topleft, title="minESS per second Comparison for $(my_sampler)", xrotation = 20, yaxis=:log10, color=:auto)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
     end
 end
@@ -168,7 +167,7 @@ normal jitter comparison plots
 =#
 function jitter_comparison_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
-    base_df = filter(row -> row.model != "normal", base_df) #!!! normal ess is on a different scale, will rerun later
+    base_df = filter(row -> !(row.logstep_jitter == "adapt" && row.n_rounds != 20), base_df)
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
     unique_samplers = unique(base_df[:, :sampler_type])
@@ -180,8 +179,7 @@ function jitter_comparison_plots_model(experiment::String)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
         @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / second(log scale)", 
-            legend=:topleft, title="minESS per second by Jitter for $(my_sampler)", color=:auto, yaxis=:log10,
-            colormap = :viridis)
+            legend=:topleft, title="minESS per second by Jitter for $(my_sampler)", yaxis=:log10, color=:auto)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
     end
 end

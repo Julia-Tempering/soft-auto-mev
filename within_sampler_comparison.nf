@@ -4,7 +4,7 @@ params.dryRun = false
 def variables = [
     seed: (1..30),
     model: ["funnel_2d_1c", "funnel_128d_1c", "funnel_128d_10c", "funnel_2d_10c", "banana_2d_1c", "banana_128d_1c", "banana_128d_10c", "banana_2d_10c", "normal_2d_1c", "normal_128d_1c", "normal_128d_10c", "normal_2d_10c"],
-    sampler_type: ["SimpleRWMH"], //"SimpleAHMC", 
+    sampler_type: ["SimpleAHMC", "SimpleRWMH"], 
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
     logstep_jitter: ["none", "adapt"]

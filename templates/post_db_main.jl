@@ -23,10 +23,8 @@ function main()
 
 	samples, stats_df = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
-	elseif startswith(model, "horseshoe") # use cmdstan for NUTS
-		nuts_sample_from_model(model, seed, miness_threshold)
 	else
-	    nuts_sample_from_model(model, seed, miness_threshold)
+	    turing_nuts_sample_from_model(model, seed, miness_threshold)
 	end
 
 	isdir("csvs") || mkdir("csvs")
