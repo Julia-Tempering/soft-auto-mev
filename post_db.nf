@@ -5,9 +5,9 @@ def variables = [
     seed: (1..30),
     model: ["horseshoe_logit", "mRNA", "kilpisjarvi", "logearn_logheight_male", "diamonds"], // # "eight_schools_noncentered", "garch11", "gp_pois_regr", "lotka_volterra"
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "HitAndRunSlicer", "NUTS"], //
-    selector: ["inverted"], //"standard", 
+    selector: ["inverted"], //no need to include "standard", i.e. non-inverted selector 
     int_time: ["single_step", "rand"], // single_step gives autoMALA
-    logstep_jitter: ["none", "fixed", "adapt"]
+    logstep_jitter: ["adapt"] // no need to include "none" and "fixed"
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
@@ -25,8 +25,8 @@ workflow {
 }
 
 process runSimulation {
-    memory { params.dryRun ? 4.GB : ( task.attempt * (8.GB * (arg.sampler_type == "NUTS" ? 2 : 1)) ) } // NUTS needs ~ 65M samples for 200 minESS
-    time { 1.hour * task.attempt * (arg.sampler_type == "NUTS" ? 4 : 1) } // same reason as above
+    memory { params.dryRun ? 4.GB : ( task.attempt * (8.GB * (arg.sampler_type == "NUTS" ? 4 : 1)) ) } // NUTS needs ~ 65M samples for 200 minESS
+    time { 1.hour * task.attempt * (arg.sampler_type == "NUTS" ? 8 : 1) } // same reason as above
     maxRetries { MAX_RETRIES }
     errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
     input:

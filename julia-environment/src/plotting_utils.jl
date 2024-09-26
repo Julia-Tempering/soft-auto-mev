@@ -185,18 +185,41 @@ function jitter_comparison_plots_model(experiment::String)
 end
 
 #=
-normal jitter comparison plots
+comparison of all autoMCMC samplers and NUTS; experiment = "post_db"
 =#
+function log_prob_gradient_ratio(model::String31) # computed separately, recording the avg of time_gradient/time_log_prob
+    if startswith(model, "horseshoe")
+        38.434561044077014
+    elseif startswith(model, "mRNA")
+        7.530747548183666
+    elseif startswith(model, "logearn_logheight_male")
+        5.879063021200223
+    elseif startswith(model, "kilpisjarvi")
+        7.1742443181818185
+    elseif startswith(model, "diamonds")
+        3.8965641491871517
+    else
+        throw(KeyError(model))
+    end
+end
+
 function all_comparison_plots_model(experiment::String)
     df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
-    df = filter(row -> row.sampler in ["autoRWMH_inv_jitter", "autoMALA_inv", "autoHMC_inv", "NUTS", "HitAndRunSlicer"], df)
-    df = filter(row -> row.model ∉ ["eight_school_noncentered", "garch11"], df)
     sort!(df, :model) # ensure ordering on x-axis
-    # Create the grouped boxplot
-    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS / second(log scale)", 
-        legend=:topright, title="minESS per second for All Samplers", color=:auto, yaxis=:log10,
-        colormap = :viridis)
-        savefig(joinpath(plots_path,"miness_comparison.png"))
+    # Create the grouped boxplot for minESS/sec
+    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler_type, xlabel="Model", ylabel="minESS / second(log scale)", 
+        legend=:outerbottom, title="Comparison of minESS per Second for All Samplers", color=:auto, yaxis=:log10)
+    savefig(joinpath(plots_path,"miness_per_sec_comparison.png"))
+
+    # now create the minESS/cost plot
+    df.miness_per_cost = ifelse.(
+    df.sampler_type .== "autoRWMH", 
+    df.miness ./ df.n_steps, 
+    df.miness ./ (df.n_steps .* (1 .+ log_prob_gradient_ratio.(df.model)))
+    )
+    @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler_type, xlabel="Model", ylabel="minESS / cost(log scale)", 
+        legend=:outerbottom, title="Comparison of minESS per Cost for All Samplers", color=:auto, yaxis=:log10)
+    savefig(joinpath(plots_path,"miness_per_cost_comparison.png"))
 end

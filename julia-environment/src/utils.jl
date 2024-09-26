@@ -11,6 +11,7 @@ using Statistics
 using StanSample
 using JSON
 using Turing
+using ReverseDiff
 
 using Pigeons
 using autoHMC
@@ -62,6 +63,8 @@ special_margin_mean_std(model::String, args...) =
         (1, 6.72838, 0.22442)
     elseif model == "mRNA"
         (3, -1.8909, 1.0014) # 3 => log(beta), hardest to sample together with delta
+    elseif startswith(model, "horseshoe")
+        (1, 0.88484, 0.116685)
     else
         throw(KeyError(model))
     end
@@ -347,13 +350,17 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     Random.seed!(seed)
 
     # run until minESS threshold is breached
-    n_samples = ceil(Int, 10*miness_threshold) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
+    n_samples = ceil(Int, 160*miness_threshold) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
     n_steps = 0
     miness = my_time = 0.0
     local samples
     local chain
     while n_samples < max_samples
-        my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples) # reduce max_depth because NUTS is super slow
+        if startswith(model, "horseshoe")
+            my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples)# reduce max_depth because NUTS is super slow
+        else
+            my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), n_samples)
+        end
         n_steps = sum(chain[:n_steps]) # count leapfrogs not including warmup
         samples = [chain[param] for param in names(chain)[1:end-12]] # discard 12 aux vars
         miness = minimum(DataFrame(ess(chain)).ess)
@@ -369,7 +376,7 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     acceptance_prob = mean(chain[:acceptance_rate])
     step_size = mean(chain[:step_size])
     stats_df = DataFrame(
-        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, n_steps=n_steps, miness=miness, 
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_steps=n_steps, miness=miness, 
         acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)))
     return samples, stats_df
 end
