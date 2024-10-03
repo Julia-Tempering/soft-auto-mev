@@ -1,6 +1,6 @@
 using AlgebraOfGraphics, CairoMakie, StatsPlots
 
-#include("utils.jl")
+include("utils.jl")
 
 function get_summary_df(experiment::String)
     base_folder = base_dir()
@@ -10,7 +10,7 @@ end
 
 # ratio of running time of gradient VS log potential
 # computed separately, recording the avg of time_gradient/time_log_prob
-function log_prob_gradient_ratio(model::String31)
+function log_prob_gradient_ratio(model::String)
     if startswith(model, "horseshoe")
         35.66540160529861 # another run: 35.45077959104718
     elseif startswith(model, "mRNA")
