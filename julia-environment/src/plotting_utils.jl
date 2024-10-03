@@ -1,11 +1,29 @@
 using AlgebraOfGraphics, CairoMakie, StatsPlots
 
-include("utils.jl")
+#include("utils.jl")
 
 function get_summary_df(experiment::String)
     base_folder = base_dir()
     csv_path    = joinpath(base_folder, "deliverables", experiment, "aggregated", "summary.csv")
     return DataFrame(CSV.File(csv_path))
+end
+
+# ratio of running time of gradient VS log potential
+# computed separately, recording the avg of time_gradient/time_log_prob
+function log_prob_gradient_ratio(model::String31)
+    if startswith(model, "horseshoe")
+        35.66540160529861 # another run: 35.45077959104718
+    elseif startswith(model, "mRNA")
+        5.766575585884267 # another run: 5.793217015357431
+    elseif startswith(model, "logearn_logheight_male")
+        4.129503888073945 # another run: 4.274167584502551
+    elseif startswith(model, "kilpisjarvi")
+        5.956119530847897 # another run: 6.0015265040396
+    elseif startswith(model, "diamonds")
+        3.567778885451556 # another run: 3.5331787529624483
+    else
+        throw(KeyError(model))
+    end
 end
 
 function prepare_df(df::DataFrame)
@@ -19,6 +37,11 @@ function prepare_df(df::DataFrame)
     df[idxs, :sampler_type] .= "autoRWMH"
     df.miness_per_sec = df.miness ./ df.time
     df.miness_per_step = df.miness ./ df.n_steps
+    df.miness_per_cost = ifelse.(
+        map(sampler -> sampler in ["autoRWMH", "SliceSampler", "HitAndRunSlicer"], df.sampler_type),
+        df.miness ./ df.n_logprob,  # non gradient-based samplers
+        df.miness ./ (df.n_logprob .+ 2 * df.n_steps .* log_prob_gradient_ratio.(df.model)) # 1 leapfrog = 2 gradient eval
+    ) # gradient based: we use cost = #log_potential_eval + eta * #gradient_eval, where eta is model dependent
     df.sampler = map(zip(df.sampler_type, df.selector, df.logstep_jitter)) do (t,s,j)
         t in ("NUTS", "SliceSampler") ? t : t * (s == "inverted" ? "_inv" : "") * (j in ["adapt", "normal"] ? "_jitter" : "")
     end
@@ -187,22 +210,6 @@ end
 #=
 comparison of all autoMCMC samplers and NUTS; experiment = "post_db"
 =#
-function log_prob_gradient_ratio(model::String31) # computed separately, recording the avg of time_gradient/time_log_prob
-    if startswith(model, "horseshoe")
-        38.434561044077014
-    elseif startswith(model, "mRNA")
-        7.530747548183666
-    elseif startswith(model, "logearn_logheight_male")
-        5.879063021200223
-    elseif startswith(model, "kilpisjarvi")
-        7.1742443181818185
-    elseif startswith(model, "diamonds")
-        3.8965641491871517
-    else
-        throw(KeyError(model))
-    end
-end
-
 function all_comparison_plots_model(experiment::String)
     df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
@@ -214,11 +221,6 @@ function all_comparison_plots_model(experiment::String)
     savefig(joinpath(plots_path,"miness_per_sec_comparison.png"))
 
     # now create the minESS/cost plot
-    df.miness_per_cost = ifelse.(
-    df.sampler_type .== "autoRWMH", 
-    df.miness ./ df.n_steps, 
-    df.miness ./ (df.n_steps .* (1 .+ log_prob_gradient_ratio.(df.model)))
-    )
     @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler_type, xlabel="Model", ylabel="minESS / cost(log scale)", 
         legend=:outerbottom, title="Comparison of minESS per Cost for All Samplers", color=:auto, yaxis=:log10)
     savefig(joinpath(plots_path,"miness_per_cost_comparison.png"))

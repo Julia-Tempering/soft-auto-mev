@@ -203,7 +203,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     ))
 
     # run until minESS threshold is breached
-    n_steps = n_samples = 0
+    n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
@@ -211,7 +211,12 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
-        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model) # skip computing ess for low sample sizes (buggy)
+        n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
+            n_steps # n_steps record the log potential evaluation for non-gradient based samplers
+            else
+                first(Pigeons.recorder_values(pt, :explorer_n_logprob))
+            end
+        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model)
         miness > miness_threshold && break
         @info """
             Low ESS after round $n_rounds: miness = $miness < $miness_threshold = miness_threshold
@@ -235,7 +240,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     jitter_std = isa(pt.shared.explorer, HitAndRunSlicer) ? 0 :
         isa(pt.shared.explorer.step_jitter.dist, Normal) ? std(pt.shared.explorer.step_jitter.dist) : 0
     stats_df = DataFrame(
-        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, 
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, n_logprob = n_logprob, 
         n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = n_rounds)
     return samples, stats_df
 end
@@ -258,7 +263,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         show_report = true
     ))
     stats_df = DataFrame(
-        mean_1st_dim = [], var_1st_dim = [], time = [], jitter_std = [], n_steps = [], 
+        mean_1st_dim = [], var_1st_dim = [], time = [], jitter_std = [], n_steps = [], n_logprob =[], 
         miness = [], acceptance_prob=[], step_size=[], n_rounds = [])
 
     # run until max_rounds
@@ -268,9 +273,14 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
     while n_rounds ≤ max_rounds # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
+        n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
+            n_steps # n_steps record the log potential evaluation for non-gradient based samplers
+            else
+                first(Pigeons.recorder_values(pt, :explorer_n_logprob))
+            end
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
-        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model) # skip computing ess for low sample sizes (buggy)
+        miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model)
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
         mean_1st_dim = first(mean(pt))
@@ -286,7 +296,8 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
         acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
             first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
-        push!(stats_df, (mean_1st_dim, var_1st_dim, time, jitter_std, n_steps, miness, acceptance_prob, step_size, n_rounds))
+        push!(stats_df, (mean_1st_dim, var_1st_dim, time, jitter_std, n_logprob, 
+                n_steps, miness, acceptance_prob, step_size, n_rounds))
     end
 
     return samples, stats_df
@@ -349,21 +360,24 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     my_model = turing_nuts_model(model, my_data)
     Random.seed!(seed)
 
-    # run until minESS threshold is breached
-    n_samples = ceil(Int, 160*miness_threshold) # assume ESS/n_samples = 10%. Also run at least 1000 o.w. cmdstan complains
-    n_steps = 0
+    # run until minESS threshold is reached
+    n_samples = ceil(Int, 640*miness_threshold) # start from the 6th round to avoid too many rounds
+    n_logprob = n_steps = 0
     miness = my_time = 0.0
     local samples
     local chain
     while n_samples < max_samples
-        if startswith(model, "horseshoe")
-            my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples)# reduce max_depth because NUTS is super slow
+        if startswith(model, "horseshoe") # reversediff complains about bernoullilogit
+            my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples)
         else
             my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), n_samples)
-        end
-        n_steps = sum(chain[:n_steps]) # count leapfrogs not including warmup
+        end # reduce max_depth because NUTS is super slow
+        n_steps += sum(chain[:n_steps]) # count leapfrogs not including warmup
+        n_logprob += n_steps + 2*n_samples # Once at the start, n times during leapfrog, once more at the end for the accept/reject
         samples = [chain[param] for param in names(chain)[1:end-12]] # discard 12 aux vars
-        miness = minimum(DataFrame(ess(chain)).ess)
+        samples = [vec(sample) for sample in samples] # convert to vectors
+        samples = [collect(row) for row in eachrow(hcat(samples...))] # convert to format compatible with min_ess_all_methods
+        miness = min_ess_all_methods(samples, model)
         miness > miness_threshold && break
         @info """
             Low ESS: miness = $miness < $miness_threshold = miness_threshold
@@ -376,8 +390,8 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     acceptance_prob = mean(chain[:acceptance_rate])
     step_size = mean(chain[:step_size])
     stats_df = DataFrame(
-        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_steps=n_steps, miness=miness, 
-        acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)))
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_logprob = n_logprob, n_steps=n_steps, 
+        miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)))
     return samples, stats_df
 end
 

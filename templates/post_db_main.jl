@@ -24,7 +24,7 @@ function main()
 	samples, stats_df = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
 	else
-	    turing_nuts_sample_from_model(model, seed, miness_threshold)
+	    turing_nuts_sample_from_model(model, seed, 40) #miness_threshold
 	end
 
 	isdir("csvs") || mkdir("csvs")

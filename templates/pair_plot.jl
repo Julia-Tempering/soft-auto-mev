@@ -1,0 +1,72 @@
+using Pkg
+#Pkg.activate("julia-environment") 
+#include(joinpath("../julia-environment/src/utils.jl")) 
+using CairoMakie
+
+function make_explorer(explorer)
+    if explorer == "autoRWMH"
+        SimpleRWMH()
+    elseif explorer == "autoMALA"
+        SimpleAHMC(n_refresh=1, int_time = autoHMC.FixedIntegrationTime())
+    else
+        SimpleAHMC(n_refresh=1, int_time = autoHMC.AdaptiveRandomIntegrationTime())
+    end
+end
+
+function pairplot(df, title="Pairplot")
+    rows, cols = size(df)
+    plots = []
+	p_mat = Matrix(undef,cols,cols);
+    for i = 1:cols, j = 1:cols
+		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
+        if i>j
+			subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=14/cols, 
+			alpha=0.4, markerstrokecolor=nothing, grid=nothing, 
+			tickfontsize=round(32/cols), tick_direction=:in, 
+			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
+			xticks=(i==cols ? :auto : nothing), yticks=(j==1 ? :auto : nothing))
+			push!(plots,subplot)
+		elseif i==j
+			subplot = StatsPlots.histogram(df[:,i], normalize=true, legend=false, alpha=0.4, ticks=nothing, showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),xticks=(i==cols ? :auto : nothing), 
+				tick_direction=:in, tickfontcolor="white", xrot=45
+			)
+			StatsPlots.density!(df[:,i], grid=nothing, tickfontsize=round(32/cols), trim=true,
+			xlimits=(minimum(df[:,i]),maximum(df[:,i])))
+			push!(plots,subplot)
+		end
+    end
+    return StatsPlots.plot(plots..., layout=p_mat, plot_title=title, plot_titlevspan=0.05)
+end
+
+function get_pair_plot(explorer)
+    pt = pigeons(
+        target     = stan_logpotential("mRNA"),
+        seed       = 1,
+        n_rounds   = 15,
+        n_chains   = 1, 
+        record     = [record_default(); Pigeons.traces; online],
+        explorer   = make_explorer(explorer),
+        show_report = true
+    )
+    
+    samples = vcat(get_sample(pt))
+    
+    # Extract x coordinates
+    x1 = [sample[1] for sample in samples]
+    x2 = [sample[2] for sample in samples]
+    x3 = [sample[3] for sample in samples]
+    x4 = [sample[4] for sample in samples]
+    x5 = [sample[5] for sample in samples]
+    df = DataFrame(lt0 = x1, lkm0 = x2, lbeta = x3, ldelta = x4, lsigma = x5)
+    
+    # Plot the trace line
+    pairplot(df)
+end
+
+# draw pairplot
+for explorer in ["autoRWMH", "autoMALA", "autoHMC"]
+    fig = get_pair_plot(explorer)
+    # Display the figure with both trace plots side by side
+    # display(fig)
+    save("deliverables/pairplot/pairplot_$explorer.png", fig)
+end
