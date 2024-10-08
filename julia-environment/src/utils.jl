@@ -247,7 +247,7 @@ end
 
 
 # record the jitter distribution for each round for the adaptive_jitter explorer
-function pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold; max_rounds = 20)
+function pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold; max_rounds = 21)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
     recorders = [
         record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
@@ -267,7 +267,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         miness = [], acceptance_prob=[], step_size=[], n_rounds = [])
 
     # run until max_rounds
-    n_steps = n_samples = 0
+    n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
@@ -281,6 +281,9 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
         miness = n_samples < miness_threshold ? 0.0 : min_ess_all_methods(samples, model)
+        @info """
+            $n_rounds: miness = $miness
+        """
         pt = Pigeons.increment_n_rounds!(pt, 1)
         n_rounds += 1 
         mean_1st_dim = first(mean(pt))
@@ -362,10 +365,11 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
 
     # run until minESS threshold is reached
     n_samples = ceil(Int, 640*miness_threshold) # start from the 6th round to avoid too many rounds
-    n_logprob = n_steps = 0
+    n_logprob = n_steps = energy_jump_dist = 0
     miness = my_time = 0.0
     local samples
     local chain
+    max_samples = model == "diamonds" ? n_samples+1 : max_samples
     while n_samples < max_samples
         if startswith(model, "horseshoe") # reversediff complains about bernoullilogit
             my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples)
@@ -373,7 +377,8 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
             my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), n_samples)
         end # reduce max_depth because NUTS is super slow
         n_steps += sum(chain[:n_steps]) # count leapfrogs not including warmup
-        n_logprob += n_steps + 2*n_samples # Once at the start, n times during leapfrog, once more at the end for the accept/reject
+        n_logprob += 2*n_steps + 2*n_samples # Once at the start, 2n during leapfrog, once more at accept/reject
+        energy_jump_dist = sum(abs.(diff(chain[:hamiltonian_energy], dims=1)))
         samples = [chain[param] for param in names(chain)[1:end-12]] # discard 12 aux vars
         samples = [vec(sample) for sample in samples] # convert to vectors
         samples = [collect(row) for row in eachrow(hcat(samples...))] # convert to format compatible with min_ess_all_methods
@@ -391,7 +396,7 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     step_size = mean(chain[:step_size])
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_logprob = n_logprob, n_steps=n_steps, 
-        miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)))
+        miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)), energy_jump_dist = energy_jump_dist)
     return samples, stats_df
 end
 

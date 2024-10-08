@@ -10,17 +10,23 @@ end
 
 # ratio of running time of gradient VS log potential
 # computed separately, recording the avg of time_gradient/time_log_prob
-function log_prob_gradient_ratio(model::String)
+function log_prob_gradient_ratio(model::AbstractString)
     if startswith(model, "horseshoe")
         35.66540160529861 # another run: 35.45077959104718
     elseif startswith(model, "mRNA")
         5.766575585884267 # another run: 5.793217015357431
-    elseif startswith(model, "logearn_logheight_male")
-        4.129503888073945 # another run: 4.274167584502551
+    elseif startswith(model, "earning")
+        4.129503888073945 # another run: 4.174167584502551
     elseif startswith(model, "kilpisjarvi")
         5.956119530847897 # another run: 6.0015265040396
     elseif startswith(model, "diamonds")
         3.567778885451556 # another run: 3.5331787529624483
+    elseif startswith(model, "funnel")
+        4.0364094087006075 # another run: 4.078465487645988
+    elseif startswith(model, "banana")
+        3.6526912428378147 # another run: 3.634853668305632
+    elseif startswith(model, "normal")
+        14.19361594425169 # another run: 14.444763963652496  
     else
         throw(KeyError(model))
     end
@@ -35,6 +41,12 @@ function prepare_df(df::DataFrame)
     df[idxs, :sampler_type] .= "autoHMC"
     idxs = @. df.sampler_type == "SimpleRWMH"
     df[idxs, :sampler_type] .= "autoRWMH"
+    idxs = @. df.model == "horseshoe_logit"
+    df[idxs, :model] .= "horseshoe"
+    idxs = @. df.model == "logearn_logheight_male"
+    df[idxs, :model] .= "earning"
+    idxs = @. df.logstep_jitter == "adapt"
+    df[idxs, :logstep_jitter] .= "auto"
     df.miness_per_sec = df.miness ./ df.time
     df.miness_per_step = df.miness ./ df.n_steps
     df.miness_per_cost = ifelse.(
@@ -43,7 +55,7 @@ function prepare_df(df::DataFrame)
         df.miness ./ (df.n_logprob .+ 2 * df.n_steps .* log_prob_gradient_ratio.(df.model)) # 1 leapfrog = 2 gradient eval
     ) # gradient based: we use cost = #log_potential_eval + eta * #gradient_eval, where eta is model dependent
     df.sampler = map(zip(df.sampler_type, df.selector, df.logstep_jitter)) do (t,s,j)
-        t in ("NUTS", "SliceSampler") ? t : t * (s == "inverted" ? "_inv" : "") * (j in ["adapt", "normal"] ? "_jitter" : "")
+        t in ("NUTS", "SliceSampler", "HitAndRunSlicer") ? t : t * (s == "inverted" ? "_symmetric" : "") * (j in ["none"] ? "" : "_jitter")
     end
     return df
 end
@@ -141,7 +153,8 @@ jitter-stability plots
 function jitter_stability_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
-    base_df = filter(row -> row.logstep_jitter == "adapt", base_df) # only consider stability for adaptive jitter
+    base_df = filter(row -> row.logstep_jitter == "auto", base_df) # only consider stability for adaptive jitter
+    base_df = filter(row -> !(row.model in ["kilpisjarvi", "earning"]), base_df)
     base_df.jitter_std .= ifelse.(base_df.jitter_std .<= 0.0, 10^(-5), base_df.jitter_std) # prevent zero jitter std
 
     unique_samplers = unique(base_df[:, :sampler_type])
@@ -157,17 +170,18 @@ function jitter_stability_plots_model(experiment::String)
 
         # Plot the data
         @df grouped_df StatsPlots.plot(:n_rounds, :jitter_std_mean, group=:model, lw=2, legend=:topright,
-            ribbon=:jitter_std_sem, xlabel="n_steps", ylabel="Mean jitter std (log scale)", title="Mean + SE of jitter_std vs n_rounds",
+            ribbon=:jitter_std_sem, xlabel="n_rounds", ylabel="jitter standard deviation", 
+            #title="Convergence of Jitter Standard Deviation for $sampler",
             yaxis=:log10, markershape=:auto, linecolor=:auto) #, xaxis=:log2
     
-        savefig(joinpath(plots_path,"$(sampler)_jitter_evolution.png"))
+        savefig(joinpath(plots_path,"$(sampler)_jitter_convergence.png"))
     end
 end
 
 #=
 within-sampler comparison plots
 =#
-function sampler_comparison_plots_model(experiment::String)
+function within_sampler_comparison_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
@@ -177,11 +191,15 @@ function sampler_comparison_plots_model(experiment::String)
     foreach(unique_samplers) do my_sampler
         # Filter the dataframe for the current sampler
         df = filter(:sampler_type => ==(my_sampler), base_df)
+        legend_position = my_sampler == "autoMALA" ? :topleft : :bottomright # prevent overlapping
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
-        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, xlabel="Model", ylabel="minESS/second (log scale)", 
-            legend=:topleft, title="minESS per second Comparison for $(my_sampler)", xrotation = 20, yaxis=:log10, color=:auto)
-        savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler, ylabel="minESS / cost", 
+            legend=legend_position, xrotation = 20, yaxis=:log10, color=:auto) #title="minESS per cost Comparison for $(my_sampler)", xlabel="Model", 
+        savefig(joinpath(plots_path,"$(my_sampler)_miness_cost_comparison.png"))
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, ylabel="minESS / sec", 
+            legend=legend_position, xrotation = 20, yaxis=:log10, color=:auto) #title="minESS per second Comparison for $(my_sampler)", xlabel="Model", 
+        savefig(joinpath(plots_path,"$(my_sampler)_miness_sec_comparison.png"))
     end
 end
 
@@ -190,7 +208,8 @@ normal jitter comparison plots
 =#
 function jitter_comparison_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
-    base_df = filter(row -> !(row.logstep_jitter == "adapt" && row.n_rounds != 20), base_df)
+    base_df = filter(row -> !(row.logstep_jitter == "auto" && row.n_rounds != 21), base_df)
+    base_df = filter(row -> !(row.model in ["kilpisjarvi", "earning"]), base_df)
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
     unique_samplers = unique(base_df[:, :sampler_type])
@@ -201,9 +220,12 @@ function jitter_comparison_plots_model(experiment::String)
         df = filter(:sampler_type => ==(my_sampler), base_df)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
-        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / second(log scale)", 
-            legend=:topleft, title="minESS per second by Jitter for $(my_sampler)", yaxis=:log10, color=:auto)
-        savefig(joinpath(plots_path,"$(my_sampler)_miness_comparison.png"))
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:logstep_jitter, xlabel="Model", ylabel="minESS / cost", 
+            legend=:bottomleft, yaxis=:log10, color=:auto) #title="minESS per cost by Jitter for $(my_sampler)", 
+        savefig(joinpath(plots_path,"$(my_sampler)_miness_cost_jitter_comparison.png"))
+        @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / sec", 
+            legend=:bottomleft, yaxis=:log10, color=:auto) #title="minESS per second by Jitter for $(my_sampler)", 
+        savefig(joinpath(plots_path,"$(my_sampler)_miness_sec_jitter_comparison.png"))
     end
 end
 
@@ -216,12 +238,12 @@ function all_comparison_plots_model(experiment::String)
 
     sort!(df, :model) # ensure ordering on x-axis
     # Create the grouped boxplot for minESS/sec
-    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler_type, xlabel="Model", ylabel="minESS / second(log scale)", 
-        legend=:outerbottom, title="Comparison of minESS per Second for All Samplers", color=:auto, yaxis=:log10)
+    @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler_type, xlabel="Model", ylabel="minESS / sec", 
+        legend=:bottomright, color=:auto, yaxis=:log10) #title="Comparison of minESS per Second for All Samplers", 
     savefig(joinpath(plots_path,"miness_per_sec_comparison.png"))
 
     # now create the minESS/cost plot
-    @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler_type, xlabel="Model", ylabel="minESS / cost(log scale)", 
-        legend=:outerbottom, title="Comparison of minESS per Cost for All Samplers", color=:auto, yaxis=:log10)
+    @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler_type, xlabel="Model", ylabel="minESS / cost", 
+        legend=:bottomright, color=:auto, yaxis=:log10) #title="Comparison of minESS per Cost for All Samplers", 
     savefig(joinpath(plots_path,"miness_per_cost_comparison.png"))
 end

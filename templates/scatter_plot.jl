@@ -2,6 +2,7 @@ using Pkg
 Pkg.activate("julia-environment") 
 include(joinpath("../julia-environment/src/utils.jl")) 
 using CairoMakie
+using LaTeXStrings
 
 function get_selector(selector)
     selector = selector == "autoRWMH_inv" ? autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
@@ -31,7 +32,7 @@ function get_sample_scatter(selector, ax)
     # lines!(ax, x, y, alpha=0.2)
 
     # Add scatter points (dots) around each x-value
-    CairoMakie.scatter!(ax, x, y, alpha=0.7, markersize=6)
+    CairoMakie.scatter!(ax, x, y, alpha=0.2, markersize=6)
     # Set x-axis limits
     CairoMakie.ylims!(ax, -5, 5)
 end
@@ -40,8 +41,8 @@ end
 fig = Figure(resolution = (800, 400))
 
 # Create two axes side by side
-ax1 = Axis(fig[1, 1], xlabel="x1", ylabel="x2", title="Trace Plot of autoRWMH")
-ax2 = Axis(fig[1, 2], xlabel="x1", ylabel="x2", title="Trace Plot of autoRWMH_inv")
+ax1 = Axis(fig[1, 1], xlabel=L"x_1", ylabel=L"x_2")
+ax2 = Axis(fig[1, 2], xlabel=L"x_1", ylabel=L"x_2")
 
 # Generate and plot the samples for each selector on separate axes
 get_sample_scatter("autoRWMH", ax1)

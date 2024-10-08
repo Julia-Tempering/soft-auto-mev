@@ -3,7 +3,7 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["funnel", "banana", "normal", "kilpisjarvi", "logearn_logheight_male"],
+    model: ["funnel", "banana", "normal", "kilpisjarvi", "logearn_logheight_male", "mRNA", "horseshoe_logit"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH"], //
     selector: ["inverted"], // not considering "standard" selector here
     int_time: ["single_step", "rand"], // single_step gives autoMALA
@@ -15,7 +15,9 @@ model_string = [
     funnel: "Pigeons.stan_funnel(3, 3.0)", // NB: funnel and banana have extra parameter
     banana: "Pigeons.stan_banana(3, 3.0)",
     kilpisjarvi: "stan_logpotential(model)",
-    logearn_logheight_male: "stan_logpotential(model)"
+    logearn_logheight_male: "stan_logpotential(model)",
+    mRNA: "stan_logpotential(model)",
+    horseshoe_logit: "stan_logpotential(model; dataset = \"sonar\")"
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
@@ -34,7 +36,7 @@ workflow {
 
 process runSimulation {
     memory { params.dryRun ? 4.GB : ( task.attempt * (8.GB * (arg.sampler_type == "NUTS" ? 2 : 1)) ) } // NUTS needs ~ 65M samples for 200 minESS
-    time { 1.hour * task.attempt * (arg.sampler_type == "NUTS" ? 4 : 1) } // same reason as above
+    time { 2.hour * task.attempt * (arg.sampler_type == "NUTS" ? 4 : 1) } // same reason as above
     maxRetries { MAX_RETRIES }
     errorStrategy { task.attempt <= MAX_RETRIES ? 'retry' : 'ignore' }
     input:

@@ -3,7 +3,8 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["funnel_2d_1c", "funnel_128d_1c", "funnel_128d_10c", "funnel_2d_10c", "banana_2d_1c", "banana_128d_1c", "banana_128d_10c", "banana_2d_10c", "normal_2d_1c", "normal_128d_1c", "normal_128d_10c", "normal_2d_10c"],
+    model: ["funnel(2,1)", "funnel(128,1)", "funnel(128,10)", "funnel(2,10)", "banana(2,1)", "banana(128,1)", "banana(128,10)", 
+    "banana(2,10)", "normal(2,1)", "normal(128,1)", "normal(128,10)", "normal(2,10)"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH"], 
     selector: ["standard", "inverted"],
     int_time: ["single_step", "rand"], // single_step gives autoMALA
@@ -11,18 +12,18 @@ def variables = [
 ]
 
 model_string = [
-    funnel_2d_1c: "Pigeons.stan_funnel(1, 1.0)",
-    funnel_128d_1c: "Pigeons.stan_funnel(127, 1.0)",
-    funnel_128d_10c: "Pigeons.stan_funnel(127, 10.0)",
-    funnel_2d_10c: "Pigeons.stan_funnel(1, 10.0)",
-    banana_2d_1c: "Pigeons.stan_banana(1, 1.0)",
-    banana_128d_1c: "Pigeons.stan_banana(127, 1.0)",
-    banana_128d_10c: "Pigeons.stan_banana(127, 10.0)",
-    banana_2d_10c: "Pigeons.stan_banana(1, 10.0)",
-    normal_2d_1c: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 2)",
-    normal_128d_1c: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 128)",
-    normal_128d_10c: "Pigeons.ScaledPrecisionNormalPath(10.0, 1.0, 128)",
-    normal_2d_10c: "Pigeons.ScaledPrecisionNormalPath(10.0, 1.0, 2)"
+    "funnel(2,1)": "Pigeons.stan_funnel(1, 1.0)",
+    "funnel(128,1)": "Pigeons.stan_funnel(127, 1.0)",
+    "funnel(128,10)": "Pigeons.stan_funnel(127, 10.0)",
+    "funnel(2,10)": "Pigeons.stan_funnel(1, 10.0)",
+    "banana(2,1)": "Pigeons.stan_banana(1, 1.0)",
+    "banana(128,1)": "Pigeons.stan_banana(127, 1.0)",
+    "banana(128,10)": "Pigeons.stan_banana(127, 10.0)",
+    "banana(2,10)": "Pigeons.stan_banana(1, 10.0)",
+    "normal(2,1)": "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 2)",
+    "normal(128,1)": "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 128)",
+    "normal(128,10)": "Pigeons.ScaledPrecisionNormalPath(10.0, 1.0, 128)",
+    "normal(2,10)": "Pigeons.ScaledPrecisionNormalPath(10.0, 1.0, 2)"
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768

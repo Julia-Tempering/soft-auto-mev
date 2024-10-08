@@ -4,7 +4,9 @@ using Pkg
 using CairoMakie
 
 function make_explorer(explorer)
-    if explorer == "autoRWMH"
+    if explorer == "HitAndRunSlicer"
+        HitAndRunSlicer()
+    elseif explorer == "autoRWMH"
         SimpleRWMH()
     elseif explorer == "autoMALA"
         SimpleAHMC(n_refresh=1, int_time = autoHMC.FixedIntegrationTime())
@@ -39,7 +41,15 @@ function pairplot(df, title="Pairplot")
 end
 
 function get_pair_plot(explorer)
-    pt = pigeons(
+    if explorer == "NUTS"
+        my_data = stan_data("mRNA")
+        my_model = turing_nuts_model("mRNA", my_data)
+        Random.seed!(1)
+        chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), 2^15)
+        samples = [chain[param] for param in names(chain)[1:end-12]]
+        df = DataFrame(lt0 = vec(samples[1][:]), lkm0 = vec(samples[2][:]), lbeta = vec(samples[3][:]), ldelta = vec(samples[4][:]), lsigma = vec(samples[5][:]))
+    else
+        pt = pigeons(
         target     = stan_logpotential("mRNA"),
         seed       = 1,
         n_rounds   = 15,
@@ -47,24 +57,22 @@ function get_pair_plot(explorer)
         record     = [record_default(); Pigeons.traces; online],
         explorer   = make_explorer(explorer),
         show_report = true
-    )
-    
-    samples = vcat(get_sample(pt))
-    
-    # Extract x coordinates
-    x1 = [sample[1] for sample in samples]
-    x2 = [sample[2] for sample in samples]
-    x3 = [sample[3] for sample in samples]
-    x4 = [sample[4] for sample in samples]
-    x5 = [sample[5] for sample in samples]
-    df = DataFrame(lt0 = x1, lkm0 = x2, lbeta = x3, ldelta = x4, lsigma = x5)
-    
+        )
+        samples = vcat(get_sample(pt))
+        # Extract x coordinates
+        x1 = [sample[1] for sample in samples]
+        x2 = [sample[2] for sample in samples]
+        x3 = [sample[3] for sample in samples]
+        x4 = [sample[4] for sample in samples]
+        x5 = [sample[5] for sample in samples]
+        df = DataFrame(lt0 = x1, lkm0 = x2, lbeta = x3, ldelta = x4, lsigma = x5)
+    end
     # Plot the trace line
     pairplot(df)
 end
 
 # draw pairplot
-for explorer in ["autoRWMH", "autoMALA", "autoHMC"]
+for explorer in ["HitAndRunSlicer", "NUTS", "autoRWMH", "autoMALA", "autoHMC"]
     fig = get_pair_plot(explorer)
     # Display the figure with both trace plots side by side
     # display(fig)
