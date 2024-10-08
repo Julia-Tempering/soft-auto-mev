@@ -46,7 +46,7 @@ function get_samples(explorer)
         my_data = stan_data("mRNA")
         my_model = turing_nuts_model("mRNA", my_data)
         Random.seed!(1)
-        chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), 2^15)
+        chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), 2^18)
         samples = [chain[param] for param in names(chain)[1:end-12]]
         df = DataFrame(lt0 = vec(samples[1][:]), lkm0 = vec(samples[2][:]), lbeta = vec(samples[3][:]), ldelta = vec(samples[4][:]), lsigma = vec(samples[5][:]))
     else
