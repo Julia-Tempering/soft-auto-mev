@@ -1,6 +1,6 @@
 using Pkg
-#Pkg.activate("julia-environment") 
-#include(joinpath("../julia-environment/src/utils.jl")) 
+Pkg.activate("julia-environment") 
+include(joinpath("../julia-environment/src/utils.jl")) 
 using CairoMakie
 
 function make_explorer(explorer)
@@ -15,14 +15,14 @@ function make_explorer(explorer)
     end
 end
 
-function pairplot(df, title="Pairplot")
+function pairplot(df; title="Pairplot")
     rows, cols = size(df)
     plots = []
 	p_mat = Matrix(undef,cols,cols);
     for i = 1:cols, j = 1:cols
 		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
         if i>j
-			subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=14/cols, 
+            subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=14/cols, 
 			alpha=0.4, markerstrokecolor=nothing, grid=nothing, 
 			tickfontsize=round(32/cols), tick_direction=:in, 
 			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
@@ -37,10 +37,10 @@ function pairplot(df, title="Pairplot")
 			push!(plots,subplot)
 		end
     end
-    return StatsPlots.plot(plots..., layout=p_mat, plot_title=title, plot_titlevspan=0.05)
+    return StatsPlots.plot(plots..., layout=p_mat, plot_titlevspan=0.05) #plot_title=title, 
 end
 
-function get_pair_plot(explorer)
+function get_samples(explorer)
     if explorer == "NUTS"
         my_data = stan_data("mRNA")
         my_model = turing_nuts_model("mRNA", my_data)
@@ -67,13 +67,13 @@ function get_pair_plot(explorer)
         x5 = [sample[5] for sample in samples]
         df = DataFrame(lt0 = x1, lkm0 = x2, lbeta = x3, ldelta = x4, lsigma = x5)
     end
-    # Plot the trace line
-    pairplot(df)
 end
 
 # draw pairplot
-for explorer in ["HitAndRunSlicer", "NUTS", "autoRWMH", "autoMALA", "autoHMC"]
-    fig = get_pair_plot(explorer)
+for explorer in ["HitAndRunSlicer"]#, "NUTS", "autoRWMH", "autoMALA", "autoHMC"]
+    df = get_samples(explorer)
+    fig = pairplot(df)
+    # fig = StatsPlots.cornerplot(df, compact = true)
     # Display the figure with both trace plots side by side
     # display(fig)
     save("deliverables/pairplot/pairplot_$explorer.png", fig)
