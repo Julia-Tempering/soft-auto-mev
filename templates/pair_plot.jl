@@ -2,12 +2,13 @@ using Pkg
 Pkg.activate("julia-environment") 
 include(joinpath("../julia-environment/src/utils.jl")) 
 using CairoMakie
+using StatsPlots
 
 function make_explorer(explorer)
     if explorer == "HitAndRunSlicer"
         HitAndRunSlicer()
     elseif explorer == "autoRWMH"
-        SimpleRWMH()
+        SimpleRWMH(step_jitter = autoRWMH.StepJitter(dist = Normal(0.0, 3.0),adapt_strategy = autoRWMH.FixedStepJitter()))
     elseif explorer == "autoMALA"
         SimpleAHMC(n_refresh=1, int_time = autoHMC.FixedIntegrationTime())
     else
@@ -22,8 +23,8 @@ function pairplot(df; title="Pairplot")
     for i = 1:cols, j = 1:cols
 		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
         if i>j
-            subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=14/cols, 
-			alpha=0.4, markerstrokecolor=nothing, grid=nothing, 
+            subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=1/cols, 
+			alpha=0.1, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
 			tickfontsize=round(32/cols), tick_direction=:in, 
 			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
 			xticks=(i==cols ? :auto : nothing), yticks=(j==1 ? :auto : nothing))
@@ -51,8 +52,8 @@ function get_samples(explorer)
     else
         pt = pigeons(
         target     = stan_logpotential("mRNA"),
-        seed       = 1,
-        n_rounds   = 15,
+        seed       = 2,
+        n_rounds   = 18,
         n_chains   = 1, 
         record     = [record_default(); Pigeons.traces; online],
         explorer   = make_explorer(explorer),
@@ -70,7 +71,7 @@ function get_samples(explorer)
 end
 
 # draw pairplot
-for explorer in ["HitAndRunSlicer"]#, "NUTS", "autoRWMH", "autoMALA", "autoHMC"]
+for explorer in ["autoRWMH"]#, "autoHMC", "autoMALA", "NUTS", "HitAndRunSlicer"]
     df = get_samples(explorer)
     fig = pairplot(df)
     # fig = StatsPlots.cornerplot(df, compact = true)

@@ -203,7 +203,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     ))
 
     # run until minESS threshold is breached
-    n_logprob = n_steps = n_samples = 0
+    energy_jump_dist = n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
@@ -211,6 +211,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
+        energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
         n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
             n_steps # n_steps record the log potential evaluation for non-gradient based samplers
             else
@@ -241,7 +242,8 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         isa(pt.shared.explorer.step_jitter.dist, Normal) ? std(pt.shared.explorer.step_jitter.dist) : 0
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, n_logprob = n_logprob, 
-        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = n_rounds)
+        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = n_rounds,
+        energy_jump_dist = energy_jump_dist)
     return samples, stats_df
 end
 
@@ -264,15 +266,16 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
     ))
     stats_df = DataFrame(
         mean_1st_dim = [], var_1st_dim = [], time = [], jitter_std = [], n_steps = [], n_logprob =[], 
-        miness = [], acceptance_prob=[], step_size=[], n_rounds = [])
+        miness = [], acceptance_prob=[], step_size=[], n_rounds = [], energy_jump_dist = [])
 
     # run until max_rounds
-    n_logprob = n_steps = n_samples = 0
+    energy_jump_dist = n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
         pt = pigeons(pt)
         n_steps += first(Pigeons.explorer_n_steps(pt))
+        energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
         n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
             n_steps # n_steps record the log potential evaluation for non-gradient based samplers
             else
@@ -300,7 +303,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
             first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
         push!(stats_df, (mean_1st_dim, var_1st_dim, time, jitter_std, n_logprob, 
-                n_steps, miness, acceptance_prob, step_size, n_rounds))
+                n_steps, miness, acceptance_prob, step_size, n_rounds, energy_jump_dist))
     end
 
     return samples, stats_df

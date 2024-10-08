@@ -12,8 +12,8 @@ def variables = [
 
 model_string = [
     normal: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 20)",
-    funnel: "Pigeons.stan_funnel(3, 3.0)", // NB: funnel and banana have extra parameter
-    banana: "Pigeons.stan_banana(3, 3.0)",
+    funnel: "Pigeons.stan_funnel(3, 1.0)", // NB: funnel and banana have extra parameter
+    banana: "Pigeons.stan_banana(3, 1.0)",
     kilpisjarvi: "stan_logpotential(model)",
     logearn_logheight_male: "stan_logpotential(model)",
     mRNA: "stan_logpotential(model)",
