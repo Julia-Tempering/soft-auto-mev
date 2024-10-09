@@ -215,7 +215,7 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     ))
 
     # run until minESS threshold is breached
-    energy_jump_dist = n_logprob = n_steps = n_samples = 0
+    n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
@@ -223,13 +223,6 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
-        energy_jump_dist = if pt.shared.explorer isa HitAndRunSlicer
-                first(Pigeons.recorder_values(pt, :slicer_energy_jump_distance))
-            elseif pt.shared.explorer isa SimpleAHMC
-                first(Pigeons.recorder_values(pt, :hmc_energy_jump_distance))
-            else
-                first(Pigeons.recorder_values(pt, :energy_jump_distance))
-            end
         n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
             n_steps # n_steps record the log potential evaluation for non-gradient based samplers
             else
@@ -253,6 +246,12 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     else
         pt.shared.explorer.step_size
     end
+    energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
+        autoHMC.energy_jump_distance
+    else
+        autoRWMH.energy_jump_distance
+    end
+    energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
         first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
@@ -287,7 +286,7 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         miness = [], acceptance_prob=[], step_size=[], n_rounds = [], energy_jump_dist = [])
 
     # run until max_rounds
-    energy_jump_dist = n_logprob = n_steps = n_samples = 0
+    n_logprob = n_steps = n_samples = 0
     miness = 0.0
     local samples
     while n_rounds ≤ max_rounds # bail after this point
@@ -317,6 +316,12 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
         else
             pt.shared.explorer.step_size
         end
+        energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
+            autoHMC.energy_jump_distance
+        else
+            autoRWMH.energy_jump_distance
+        end
+        energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
         time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
         acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
             first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
@@ -386,7 +391,7 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
 
     # run until minESS threshold is reached
     n_samples = ceil(Int, 640*miness_threshold) # start from the 6th round to avoid too many rounds
-    n_logprob = n_steps = energy_jump_dist = 0
+    n_logprob = n_steps = 0
     miness = my_time = 0.0
     local samples
     local chain
@@ -399,7 +404,6 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
         end # reduce max_depth because NUTS is super slow
         n_steps += sum(chain[:n_steps]) # count leapfrogs not including warmup
         n_logprob += 2*n_steps + 2*n_samples # Once at the start, 2n during leapfrog, once more at accept/reject
-        energy_jump_dist = sum(abs.(diff(chain[:hamiltonian_energy], dims=1)))
         samples = [chain[param] for param in names(chain)[1:end-12]] # discard 12 aux vars
         samples = [vec(sample) for sample in samples] # convert to vectors
         samples = [collect(row) for row in eachrow(hcat(samples...))] # convert to format compatible with min_ess_all_methods
@@ -415,6 +419,7 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     var_1st_dim = var(samples[1])
     acceptance_prob = mean(chain[:acceptance_rate])
     step_size = mean(chain[:step_size])
+    energy_jump_dist = sum(abs.(diff(chain[:hamiltonian_energy], dims=1)))
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_logprob = n_logprob, n_steps=n_steps, 
         miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)), energy_jump_dist = energy_jump_dist)
