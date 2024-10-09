@@ -24,7 +24,7 @@ function pairplot(df; title="Pairplot")
 		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
         if i>j
             subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=1/cols, 
-			alpha=0.1, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
+			alpha=0.03, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
 			tickfontsize=round(32/cols), tick_direction=:in, 
 			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
 			xticks=(i==cols ? :auto : nothing), yticks=(j==1 ? :auto : nothing))

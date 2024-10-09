@@ -149,8 +149,13 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
     elseif sampler_str == "HitAndRunSlicer"
         HitAndRunSlicer(n_refresh=1)
     elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
-	selector = selector_str == "inverted" ?
-	    autoHMC.AMSelectorInverted() : autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
+	selector = if selector_str == "inverted"
+	        autoHMC.AMSelectorInverted()
+        elseif selector_str == "non_adaptive"
+            autoHMC.AMNonAdaptiveSelector()
+        else 
+            autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
+        end
 	int_time = if int_time_str == "single_step"
             autoHMC.FixedIntegrationTime()                            # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
         elseif int_time_str == "fixed"
@@ -158,7 +163,8 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
         else
             autoHMC.AdaptiveRandomIntegrationTime()
         end
-        step_jitter = autoHMC.StepJitter(
+        step_jitter = selector_str == "non_adaptive" ? # do not use step jitter if we want to recover HMC or MALA
+            autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()) : autoHMC.StepJitter(
             dist = jitter_dist,
             adapt_strategy = jitter_str == "adapt" ? autoHMC.AdaptativeStepJitter() : autoHMC.FixedStepJitter()
         )
@@ -166,9 +172,15 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
 			n_refresh=1, int_time = int_time, step_size_selector = selector, step_jitter = step_jitter
         )
 	elseif sampler_str == "SimpleRWMH"
-	    selector = selector_str == "inverted" ?
-	        autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
-        step_jitter = autoRWMH.StepJitter(
+	    selector = if selector_str == "inverted"
+	            autoRWMH.MHSelectorInverted()
+            elseif sampler_str == "non_adaptive"
+                autoRWMH.MHNonAdaptiveSelector()
+            else 
+                autoRWMH.MHSelector()
+            end
+        step_jitter = selector_str == "non_adaptive" ? # do not use step jitter if we want to recover RWMH
+            autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter()) : autoRWMH.StepJitter(
             dist = jitter_dist,
             adapt_strategy = jitter_str == "adapt" ? autoRWMH.AdaptativeStepJitter() : autoRWMH.FixedStepJitter()
         )
@@ -211,7 +223,13 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
         n_steps += first(Pigeons.explorer_n_steps(pt))
         samples = get_sample(pt) # only from last round
         n_samples = length(samples)
-        energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
+        energy_jump_dist = if pt.shared.explorer isa HitAndRunSlicer
+                first(Pigeons.recorder_values(pt, :slicer_energy_jump_distance))
+            elseif pt.shared.explorer isa SimpleAHMC
+                first(Pigeons.recorder_values(pt, :hmc_energy_jump_distance))
+            else
+                first(Pigeons.recorder_values(pt, :energy_jump_distance))
+            end
         n_logprob += if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
             n_steps # n_steps record the log potential evaluation for non-gradient based samplers
             else

@@ -270,6 +270,6 @@ function all_comparison_plots_model(experiment::String)
     df = filter(row -> !(row.sampler_type in ["autoRWMH", "HitAndRunSlicer"]), df)
     df.leapfrog_per_ess = df.n_steps ./ df.miness
     @df df StatsPlots.groupedboxplot(:model, :leapfrog_per_ess, group=:sampler_type, xlabel="Model", ylabel="Number of Leapfrogs per minESS", 
-        legend=:bottomright, color=:auto, yaxis=:log10) #title="Comparison of minESS per Cost for All Samplers", 
+        legend=:topleft, color=:auto, yaxis=:log10) #title="Comparison of minESS per Cost for All Samplers", 
     savefig(joinpath(plots_path,"num_leapfrog_comparison.png"))
 end
