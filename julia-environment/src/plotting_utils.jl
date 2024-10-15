@@ -1,4 +1,4 @@
-using AlgebraOfGraphics, CairoMakie, StatsPlots
+#using AlgebraOfGraphics, CairoMakie, StatsPlots, CategoricalArrays
 
 #include("utils.jl")
 
@@ -53,31 +53,32 @@ function log_prob_gradient_ratio(model::AbstractString)
 end
 
 function prepare_df(df::DataFrame)
-    hasproperty(df,:miness_per_sec) && return df
+	hasproperty(df, :miness_per_sec) && return df
 
-    idxs = @. df.sampler_type == "SimpleAHMC" && df.int_time == "single_step"
-    df[idxs, :sampler_type] .= "autoMALA"
-    idxs = @. df.sampler_type == "SimpleAHMC"
-    df[idxs, :sampler_type] .= "autoHMC"
-    idxs = @. df.sampler_type == "SimpleRWMH"
-    df[idxs, :sampler_type] .= "autoRWMH"
-    idxs = @. df.model == "horseshoe_logit"
-    df[idxs, :model] .= "horseshoe"
-    idxs = @. df.model == "logearn_logheight_male"
-    df[idxs, :model] .= "earning"
-    idxs = @. df.logstep_jitter == "adapt"
-    df[idxs, :logstep_jitter] .= "auto"
-    df.miness_per_sec = df.miness ./ df.time
-    df.miness_per_step = df.miness ./ df.n_steps
-    df.miness_per_cost = ifelse.(
-        map(sampler -> sampler in ["autoRWMH", "SliceSampler", "HitAndRunSlicer"], df.sampler_type),
-        df.miness ./ df.n_logprob,  # non gradient-based samplers
-        df.miness ./ (df.n_logprob .+ 2 * df.n_steps .* log_prob_gradient_ratio.(df.model)) # 1 leapfrog = 2 gradient eval
-    ) # gradient based: we use cost = #log_potential_eval + eta * #gradient_eval, where eta is model dependent
-    df.sampler = map(zip(df.sampler_type, df.selector, df.logstep_jitter)) do (t,s,j)
-        t in ("NUTS", "SliceSampler", "HitAndRunSlicer") ? t : t * (s == "inverted" ? "_symmetric" : "") * (j in ["none"] ? "" : "_jitter")
-    end
-    return df
+	idxs = @. df.sampler_type == "SimpleAHMC" && df.int_time == "single_step"
+	df[idxs, :sampler_type] .= "autoMALA"
+	idxs = @. df.sampler_type == "SimpleAHMC"
+	df[idxs, :sampler_type] .= "autoHMC"
+	idxs = @. df.sampler_type == "SimpleRWMH"
+	df[idxs, :sampler_type] .= "autoRWMH"
+	idxs = @. df.model == "horseshoe_logit"
+	df[idxs, :model] .= "horseshoe"
+	idxs = @. df.model == "logearn_logheight_male"
+	df[idxs, :model] .= "earning"
+	idxs = @. df.logstep_jitter == "adapt"
+	df[idxs, :logstep_jitter] .= "auto"
+	df.miness_per_sec = df.miness ./ df.time
+	df.miness_per_step = df.miness ./ df.n_steps
+	df.cost = ifelse.(
+		map(sampler -> sampler in ["RWMH", "RWMH0.5", "RWMH2.0", "autoRWMH", "SliceSampler", "HitAndRunSlicer"], df.sampler_type),
+		df.n_logprob,  # non gradient-based samplers
+		df.n_logprob .+ 2 * df.n_steps .* log_prob_gradient_ratio.(df.model), # 1 leapfrog = 2 gradient eval
+	) # gradient based: we use cost = #log_potential_eval + eta * #gradient_eval, where eta is model dependent
+	df.miness_per_cost = df.miness ./ df.cost
+	df.sampler = map(zip(df.sampler_type, df.selector, df.logstep_jitter)) do (t, s, j)
+		t in ("NUTS", "SliceSampler", "HitAndRunSlicer") ? t : t * (s == "inverted" ? "_symmetric" : "") * (j in ["none"] ? "" : "_jitter")
+	end
+	return df
 end
 
 function scatter_miness_cost(experiment::String)
@@ -229,9 +230,11 @@ function jitter_comparison_plots_model(experiment::String)
     base_df = prepare_df(get_summary_df(experiment))
     base_df = filter(row -> !(row.logstep_jitter == "auto" && row.n_rounds != 21), base_df)
     base_df = filter(row -> !(row.model in ["mRNA", "earning"]), base_df)
+    replace!(base_df.logstep_jitter, "none" => "0.0")
     plots_path = joinpath(base_dir(), "deliverables", experiment)
 
     unique_samplers = unique(base_df[:, :sampler_type])
+    yticks = 10.0 .^ LinRange(-4, 4, 9)
 
     # Iterate over each sampler
     foreach(unique_samplers) do my_sampler
@@ -240,10 +243,10 @@ function jitter_comparison_plots_model(experiment::String)
         sort!(df, :model) # ensure ordering on x-axis
         # Create the grouped boxplot
         @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:logstep_jitter, xlabel="Model", ylabel="minESS / cost", 
-            legend=:bottomleft, yaxis=:log10, color=:auto) #title="minESS per cost by Jitter for $(my_sampler)", 
+            legend=:bottomleft, yaxis=:log10, color=:auto, yticks = yticks) #title="minESS per cost by Jitter for $(my_sampler)", 
         savefig(joinpath(plots_path,"$(my_sampler)_miness_cost_jitter_comparison.png"))
         @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:logstep_jitter, xlabel="Model", ylabel="minESS / sec", 
-            legend=:bottomleft, yaxis=:log10, color=:auto) #title="minESS per second by Jitter for $(my_sampler)", 
+            legend=:bottomleft, yaxis=:log10, color=:auto, yticks = yticks) #title="minESS per second by Jitter for $(my_sampler)", 
         savefig(joinpath(plots_path,"$(my_sampler)_miness_sec_jitter_comparison.png"))
     end
 end
@@ -273,3 +276,117 @@ function all_comparison_plots_model(experiment::String)
         legend=:topleft, color=:auto, yaxis=:log10) #title="Comparison of minESS per Cost for All Samplers", 
     savefig(joinpath(plots_path,"num_leapfrog_comparison.png"))
 end
+
+
+#=
+comparison of autoMCMC with non autoMCMC; experiment = "post_db", "auto_traditional"
+=#
+function non_auto_plots_model(experiment::String)
+	df = prepare_df(get_summary_df(experiment))
+    df = filter(row -> !isnan(row.energy_jump_dist), df)
+    replace!(df.model, "banana" => "banana(4,1.0)")
+    replace!(df.model, "funnel" => "funnel(4,1.0)")
+    replace!(df.sampler_type, "RWMH" => "RWMH1.0")
+    replace!(df.sampler_type, "MALA" => "MALA1.0")
+    replace!(df.sampler_type, "HMC" => "HMC1.0")
+	plots_path = joinpath(base_dir(), "deliverables", experiment)
+
+	sort!(df, :model) # ensure ordering on x-axis
+	loop_samplers = [
+        CategoricalArray(["RWMH", "RWMH0.1", "RWMH0.25", "RWMH1.0", "RWMH4.0", "RWMH10.0", "autoRWMH"], ordered = true),
+		CategoricalArray(["MALA", "MALA0.1", "MALA0.25", "MALA1.0", "MALA4.0", "MALA10.0", "autoMALA"], ordered = true),
+		CategoricalArray(["HMC", "HMC0.1", "HMC0.25", "HMC1.0", "HMC4.0", "HMC10.0", "autoHMC"], ordered = true)]
+
+	foreach(loop_samplers) do samplers
+		df2 = filter(row -> (row.sampler_type in levels(samplers)), df)
+        df2.sampler_type = CategoricalArray(df2.sampler_type, ordered=true, levels=samplers)
+        yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]#10.0 .^ LinRange(-2, 2, 5)
+
+        @df df2 StatsPlots.groupedboxplot(:model, :miness_per_sec, group = :sampler_type, #xlabel = "Model", 
+            ylabel = "minESS / sec", legend = :bottomleft, color = :auto, yaxis = :log10, yticks = yticks,
+            ylim = (0.9 * minimum(df2.miness_per_sec), 1.3 * maximum(df2.miness_per_sec)),
+            xrotation = 15)
+        # Overlay the number of points as text
+        #annotate_model_points!(unique_models, samplers, df2, maximum(df2.miness_per_sec), model_mapping, sampler_offset)
+		savefig(joinpath(plots_path, "$(samplers[1])_miness_per_sec.png"))
+
+		# now create the minESS/cost plot
+		@df df2 StatsPlots.groupedboxplot(:model, :miness_per_cost, group = :sampler_type, #xlabel = "Model", 
+        ylabel = "minESS / cost", legend = :bottomleft, color = :auto, yaxis = :log10, yticks = yticks,
+        ylim = (0.9 * minimum(df2.miness_per_cost), 1.3 * maximum(df2.miness_per_cost)),
+        xrotation = 15)
+        # Overlay the number of points as text
+        #annotate_model_points!(unique_models, samplers, df2, maximum(df2.miness_per_cost), model_mapping, sampler_offset)
+		savefig(joinpath(plots_path, "$(samplers[1])_miness_per_cost_.png"))
+
+		# now create the energy jump distance
+		@df df2 StatsPlots.groupedboxplot(:model, :energy_jump_dist, group = :sampler_type, #xlabel = "Model",
+			ylabel = "Average Energy Jump Distance", legend = :topright, color = :auto, yticks = yticks, ylim = (-0.03, 0.3),
+            xrotation = 15)#, yaxis = :log10, 
+        #annotate_model_points!(unique_models, samplers, df2, maximum(df2.energy_jump_dist), model_mapping, sampler_offset)
+		savefig(joinpath(plots_path, "$(samplers[1])_energy_jump_dist.png"))
+	end
+end
+
+
+function annotate_model_points!(unique_models, samplers, df2, position, model_mapping, sampler_offset)
+    for m in unique_models
+        for s in samplers
+            # Count the number of points for each model and sampler_type combination
+            num_points = count((df2.model .== m) .& (df2.sampler_type .== s))
+            
+            # Find the jittered model value (x-axis position) for this combination
+            jittered_x = model_mapping[m] + sampler_offset[s] - 1
+            
+            # Add text to show the number of points at the appropriate location
+            annotate!(jittered_x, 1.2 * position, StatsPlots.text(string(num_points), 6, :center, :black), 
+                      halign = :center, valign = :top, color = :black)
+        end
+    end
+end
+
+#=
+	# now consider the tuning cost
+	df2 = DataFrame(CSV.File(joinpath(base_dir(), "deliverables", experiment, "hand_tune_cost.csv")))
+	df2.cost = ifelse.(
+		map(sampler -> startswith(sampler, "RWMH"), df2.sampler),
+		df2.n_logprob,  # non gradient-based samplers
+		df2.n_logprob .+ 2 * df2.n_steps .* log_prob_gradient_ratio.(df2.model), # 1 leapfrog = 2 gradient eval
+	)
+	df.adjusted_time = df.time .+ map((m, s, t) ->
+			if any(startswith.(m, df2.model) .& startswith.(s, df2.sampler))
+				df2.time[startswith.(m, df2.model).&startswith.(s, df2.sampler)][1]
+			else
+				0  # No match, add 0
+			end, df.model, df.sampler_type, df.time)
+	df.adjusted_cost = df.cost .+ map((m, s, c) ->
+			if any(startswith.(m, df2.model) .& startswith.(s, df2.sampler))
+				df2.cost[startswith.(m, df2.model).&startswith.(s, df2.sampler)][1]
+			else
+				0  # No match, add 0
+			end, df.model, df.sampler_type, df.cost)
+	df.adjusted_miness_per_sec .= df.miness ./ df.adjusted_time
+	df.adjusted_miness_per_cost .= df.miness ./ df.adjusted_cost
+
+
+    # Define the desired order of sampler types
+    desired_order = ["autoRWMH", "RWMH", "autoMALA", "MALA", "autoHMC", "HMC"]
+    df2 = filter(row -> (row.sampler_type in desired_order), df)
+    df2.sampler_type = CategoricalArray(df2.sampler_type, ordered=true, levels=desired_order)
+	# create the adjusted minESS/sec
+	@df df2 StatsPlots.groupedboxplot(:model, :adjusted_miness_per_sec, group = :sampler_type, xlabel = "Model",
+		ylabel = "minESS / sec (adjusted for hand-tuning)",
+		legend = :bottomleft, color = :auto, yaxis = :log10)
+	savefig(joinpath(plots_path, "miness_per_sec_adjusted.png"))
+
+	# now create the adjusted minESS/cost plot
+	@df df2 StatsPlots.groupedboxplot(:model, :adjusted_miness_per_cost, group = :sampler_type, xlabel = "Model",
+		ylabel = "minESS / cost (adjusted for hand-tuning)",
+		legend = :bottomleft, color = :auto, yaxis = :log10)
+	savefig(joinpath(plots_path, "miness_per_cost_adjusted.png"))
+
+    # create the n_steps
+	@df df2 StatsPlots.groupedboxplot(:model, :n_steps, group = :sampler_type, xlabel = "Model",
+    ylabel = "n_steps", legend = :bottomleft, color = :auto, yaxis = :log10)
+    savefig(joinpath(plots_path, "n_steps.png"))
+=#

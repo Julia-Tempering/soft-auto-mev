@@ -1,6 +1,7 @@
-using Pkg
-Pkg.activate("julia-environment") 
-include(joinpath("../julia-environment/src/utils.jl")) 
+#using Pkg
+#Pkg.activate("julia-environment") 
+#include(joinpath("../julia-environment/src/utils.jl")) 
+using Turing
 using CairoMakie
 using StatsPlots
 
@@ -24,7 +25,7 @@ function pairplot(df; title="Pairplot")
 		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
         if i>j
             subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=1/cols, 
-			alpha=0.03, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
+			alpha=0.02, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
 			tickfontsize=round(32/cols), tick_direction=:in, 
 			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
 			xticks=(i==cols ? :auto : nothing), yticks=(j==1 ? :auto : nothing))
@@ -46,7 +47,7 @@ function get_samples(explorer)
         my_data = stan_data("mRNA")
         my_model = turing_nuts_model("mRNA", my_data)
         Random.seed!(1)
-        chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), 2^18)
+        chain = sample(my_model, NUTS(max_depth=5, adtype = AutoReverseDiff()), 2^17)
         samples = [chain[param] for param in names(chain)[1:end-12]]
         df = DataFrame(lt0 = vec(samples[1][:]), lkm0 = vec(samples[2][:]), lbeta = vec(samples[3][:]), ldelta = vec(samples[4][:]), lsigma = vec(samples[5][:]))
     else
@@ -71,7 +72,7 @@ function get_samples(explorer)
 end
 
 # draw pairplot
-for explorer in ["autoRWMH"]#, "autoHMC", "autoMALA", "NUTS", "HitAndRunSlicer"]
+for explorer in ["NUTS"] # "autoRWMH", "HitAndRunSlicer", "autoHMC", "autoMALA", 
     df = get_samples(explorer)
     fig = pairplot(df)
     # fig = StatsPlots.cornerplot(df, compact = true)

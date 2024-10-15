@@ -3,7 +3,7 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["funnel", "banana", "normal", "kilpisjarvi", "logearn_logheight_male", "mRNA", "horseshoe_logit"],
+    model: ["funnel", "banana", "normal", "mRNA", "horseshoe_logit"],
     sampler_type: ["SimpleAHMC", "SimpleRWMH"], //
     selector: ["inverted"], // not considering "standard" selector here
     int_time: ["single_step", "rand"], // single_step gives autoMALA
@@ -14,8 +14,6 @@ model_string = [
     normal: "Pigeons.ScaledPrecisionNormalPath(1.0, 1.0, 20)",
     funnel: "Pigeons.stan_funnel(3, 1.0)", // NB: funnel and banana have extra parameter
     banana: "Pigeons.stan_banana(3, 1.0)",
-    kilpisjarvi: "stan_logpotential(model)",
-    logearn_logheight_male: "stan_logpotential(model)",
     mRNA: "stan_logpotential(model)",
     horseshoe_logit: "stan_logpotential(model; dataset = \"sonar\")"
 ]
