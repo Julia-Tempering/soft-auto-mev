@@ -265,6 +265,61 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
 end
 
 
+# remove miness_threshold, and only run a fixed round
+function pt_sample_from_model_fixed(model, target, seed, explorer, num_rounds)
+    n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
+    recorders = [
+        record_default(); explorer_proposal_log_diff; Pigeons.explorer_acceptance_pr; Pigeons.traces;
+        Pigeons.reversibility_rate; online
+    ]
+    pt = PT(Inputs(
+        target      = target, 
+        seed        = seed,
+        n_rounds    = num_rounds,
+        n_chains    = 1, 
+        record      = recorders,
+        explorer    = explorer, 
+        show_report = true
+    ))
+
+    pt = pigeons(pt)
+    n_steps = first(Pigeons.explorer_n_steps(pt))
+    samples = get_sample(pt) # only from last round
+    n_samples = length(samples)
+    n_logprob = if explorer isa SimpleRWMH || explorer isa SliceSampler || explorer isa HitAndRunSlicer
+        n_steps # n_steps record the log potential evaluation for non-gradient based samplers
+        else
+            first(Pigeons.recorder_values(pt, :explorer_n_logprob))
+        end
+    miness = min_ess_all_methods(samples, model)
+    mean_1st_dim = first(mean(pt))
+    var_1st_dim = first(var(pt))
+    step_size = if explorer isa SliceSampler
+        pt.shared.explorer.w
+    elseif explorer isa HitAndRunSlicer
+        pt.shared.explorer.slicer.w
+    else
+        pt.shared.explorer.step_size
+    end
+    energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
+        autoHMC.energy_jump_distance
+    else
+        autoRWMH.energy_jump_distance
+    end
+    energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
+    time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
+    acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
+        first(Pigeons.recorder_values(pt, :explorer_acceptance_pr))
+    jitter_std = isa(pt.shared.explorer, HitAndRunSlicer) ? 0 :
+        isa(pt.shared.explorer.step_jitter.dist, Normal) ? std(pt.shared.explorer.step_jitter.dist) : 0
+    stats_df = DataFrame(
+        mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=time, jitter_std = jitter_std, n_logprob = n_logprob, 
+        n_steps=n_steps, miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = n_rounds,
+        energy_jump_dist = energy_jump_dist)
+    return samples, stats_df
+end
+
+
 # record the jitter distribution for each round for the adaptive_jitter explorer
 function pt_sample_from_model_round_by_round(model, target, seed, explorer, miness_threshold; max_rounds = 21)
     n_rounds = 1 # NB: cannot start from >1 otherwise we miss the explorer n_steps from all but last round
@@ -385,7 +440,7 @@ end
 # using NUTS in Turing.jl
 function turing_nuts_sample_from_model(model, seed, miness_threshold; max_samples = 2^25, kwargs...)
     # make model and data from the arguments
-    my_data = stan_data(model)
+    my_data = stan_data(model; kwargs...)
     my_model = turing_nuts_model(model, my_data)
     Random.seed!(seed)
 
@@ -480,7 +535,7 @@ function model_string(model; dataset=nothing, kwargs...)
 end
 
 function stan_data(model::String; dataset=nothing, dim=nothing, scale=nothing) 
-    if model in ("funnel", "banana")
+    if (startswith(model, "funnel") || startswith(model, "banana"))
         Dict("dim" => dim-1, "scale" => scale)
     elseif model in ("funnel_scale", "banana_scale") 
         Dict("dim" => 1, "scale" => scale) # actual dimension is dim+1
@@ -534,7 +589,7 @@ end
 # IDEA: reuse the machinery for cmdstan, to minimize divergence
 # also forces use of temp file; this avoids race conditions when
 # multiple nodes are compiling a file in a shared location (like base_dir()/stan)
-function stan_logpotential(model; dataset = nothing)
+function stan_logpotential(model; dataset = nothing, dim = nothing, scale = nothing)
     tmpdir = mktempdir()
     isdir(tmpdir) || mkdir(tmpdir)
     
@@ -546,7 +601,7 @@ function stan_logpotential(model; dataset = nothing)
     end
 
     # write .json file    
-    data_str = json(stan_data(model; dataset = dataset))
+    data_str = json(stan_data(model; dataset = dataset, dim = dim, scale = scale))
     data_fname = joinpath(tmpdir, model * ".json")
     open(data_fname, "w") do f
         write(f, data_str)
@@ -612,7 +667,6 @@ function mrna_load_data()
 end
 
 # utility function to create models for Turing.NUTS()
-# !!! too redundant, will try to clean up later
 function turing_nuts_model(model, data)
     if startswith(model, "diamonds")
         @model function diamonds(Y, X, N, K)
@@ -716,6 +770,24 @@ function turing_nuts_model(model, data)
             end
         end
         return mRNA_model(data["N"], data["ts"], data["ys"])
+    elseif startswith(model, "funnel")
+        @model function funnel(dim, scale)
+            x = Vector{Real}(undef, dim + 1)
+            x[1] ~ Normal(0, 3)
+            for i in 2:dim
+                x[i] ~ Normal(0, exp(x[1] / scale)) 
+            end
+        end
+        return funnel(data["dim"], data["scale"])
+    elseif startswith(model, "banana")
+        @model function banana(dim, scale)
+            x = Vector{Real}(undef, dim + 1)
+            x[1] ~ Normal(0, sqrt(10))
+            for i in 2:dim
+                x[i] ~ Normal(x[1]^2, scale / sqrt(10)) 
+            end
+        end
+        return banana(data["dim"], data["scale"])
     else
         error("unknown model $model")
     end

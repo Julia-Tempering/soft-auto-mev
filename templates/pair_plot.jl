@@ -1,7 +1,6 @@
 #using Pkg
 #Pkg.activate("julia-environment") 
 #include(joinpath("../julia-environment/src/utils.jl")) 
-using Turing
 using CairoMakie
 using StatsPlots
 

@@ -3,20 +3,12 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["horseshoe_logit", "mRNA", "funnel(4,1)", "funnel(4,0.3)", "banana(4,1)", "banana(4,0.3)"], // "kilpisjarvi", "logearn_logheight_male", "diamonds"
-    sampler_type: ["SimpleAHMC", "SimpleRWMH", "HitAndRunSlicer", "NUTS"], //
-    selector: ["inverted"], //no need to include "standard", i.e. non-inverted selector 
-    int_time: ["single_step", "rand"], // single_step gives autoMALA
-    logstep_jitter: ["adapt"] // no need to include "none" and "fixed"
-]
-
-model_string = [
-    "funnel(4,1)": "stan_logpotential(\"funnel\"; dim = 4, scale = 1)", 
-    "banana(4,1)": "stan_logpotential(\"banana\"; dim = 4, scale = 1)", 
-    "funnel(4,0.3)": "stan_logpotential(\"funnel\"; dim = 4, scale = 0.3)",  
-    "banana(4,0.3)": "stan_logpotential(\"banana\"; dim = 4, scale = 0.3)", 
-    mRNA: "stan_logpotential(model)",
-    horseshoe_logit: "stan_logpotential(model; dataset = \"sonar\")"
+    model: ["horseshoe_logit", "mRNA", "banana(4,0.3)", "funnel(4,0.3)", "funnel(4,1)", "banana(4,1)"],
+    sampler_type: ["HMC0.25", "MALA0.25", "RWMH0.25", "HMC0.1", "MALA0.1", "RWMH0.1", "HMC10.0", "MALA10.0", "RWMH10.0", 
+    "HMC4.0", "MALA4.0", "RWMH4.0","HMC", "MALA", "RWMH", "SimpleAHMC", "SimpleRWMH"], 
+    selector: ["inverted"],
+    int_time: ["single_step", "rand"],
+    logstep_jitter: ["adapt"]
 ]
 
 def MAX_RETRIES = params.dryRun ? 0 : 1 // workaround for retry-then-ignore: https://github.com/nextflow-io/nextflow/issues/1090#issuecomment-477964768
@@ -28,7 +20,6 @@ workflow {
         .filter { it.sampler_type.startsWith("Simple") || it.selector == variables.selector.first() } // selector is only relevant for auto types
         .filter { it.sampler_type.startsWith("Simple") || it.logstep_jitter == variables.logstep_jitter.first() } // step jitter only relevant for auto types
         .filter { it.sampler_type == "SimpleAHMC" || it.int_time == variables.int_time.first() } // int_time is only relevant for autoHMC
-    	// .view()  
     julia_env = setupPigeons(julia_depot_dir, julia_env_dir)
     agg_path = runSimulation(julia_depot_dir, julia_env, args) | collectCSVs
 }
@@ -45,6 +36,5 @@ process runSimulation {
     output:
         tuple val(arg), path('csvs')
   script:
-    template 'post_db_main.jl'
+    template 'fixed_round_main.jl'
 }
-

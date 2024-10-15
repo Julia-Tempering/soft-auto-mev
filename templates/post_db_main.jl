@@ -17,14 +17,17 @@ function main()
 		explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}"
 	)
 	model = "${arg.model}"
-	target = startswith(model, "horseshoe") ? stan_logpotential(model; dataset = "sonar") : stan_logpotential(model)
+	dim = 4
+	scale = model in ["funnel(4,1)", "banana(4,1)"] ? 1 : 0.3
+	target = ${model_string[arg.model]}
+	#target = startswith(model, "horseshoe") ? stan_logpotential(model; dataset = "sonar") : stan_logpotential(model)
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 
 	samples, stats_df = if explorer_type != "NUTS" # use Pigeons 
 	    pt_sample_from_model(model, target, seed, explorer, miness_threshold)
 	else
-	    turing_nuts_sample_from_model(model, seed, 35) #miness_threshold
+	    turing_nuts_sample_from_model(model, seed, miness_threshold; dim = dim, scale = scale) 
 	end
 
 	isdir("csvs") || mkdir("csvs")
