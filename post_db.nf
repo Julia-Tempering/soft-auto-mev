@@ -3,7 +3,7 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["horseshoe_logit", "mRNA", "funnel(4,1)", "funnel(4,0.3)", "banana(4,1)", "banana(4,0.3)"], // "kilpisjarvi", "logearn_logheight_male", "diamonds"
+    model: ["mRNA", "funnel(4,1)", "funnel(4,0.3)", "banana(4,1)", "banana(4,0.3)", "horseshoe_logit"], 
     sampler_type: ["SimpleAHMC", "SimpleRWMH", "HitAndRunSlicer", "NUTS"], //
     selector: ["inverted"], //no need to include "standard", i.e. non-inverted selector 
     int_time: ["single_step", "rand"], // single_step gives autoMALA

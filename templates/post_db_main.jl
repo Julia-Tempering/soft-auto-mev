@@ -20,7 +20,6 @@ function main()
 	dim = 4
 	scale = model in ["funnel(4,1)", "banana(4,1)"] ? 1 : 0.3
 	target = ${model_string[arg.model]}
-	#target = startswith(model, "horseshoe") ? stan_logpotential(model; dataset = "sonar") : stan_logpotential(model)
 	seed = ${arg.seed}
 	miness_threshold = ${params.dryRun ? 1 : 100}
 

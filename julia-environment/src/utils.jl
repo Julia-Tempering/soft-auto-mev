@@ -450,7 +450,6 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     miness = my_time = 0.0
     local samples
     local chain
-    max_samples = model == "diamonds" ? n_samples+1 : max_samples
     while n_samples < max_samples
         if startswith(model, "horseshoe") # reversediff complains about bernoullilogit
             my_time += @elapsed chain = sample(my_model, NUTS(max_depth=5), n_samples)
@@ -474,7 +473,7 @@ function turing_nuts_sample_from_model(model, seed, miness_threshold; max_sample
     var_1st_dim = var(samples[1])
     acceptance_prob = mean(chain[:acceptance_rate])
     step_size = mean(chain[:step_size])
-    energy_jump_dist = sum(abs.(diff(chain[:hamiltonian_energy], dims=1)))
+    energy_jump_dist = mean(abs.(diff(chain[:hamiltonian_energy], dims=1)))
     stats_df = DataFrame(
         mean_1st_dim = mean_1st_dim, var_1st_dim = var_1st_dim, time=my_time, jitter_std = 0, n_logprob = n_logprob, n_steps=n_steps, 
         miness=miness, acceptance_prob=acceptance_prob, step_size=step_size, n_rounds = log2(n_samples/(10*miness_threshold)), energy_jump_dist = energy_jump_dist)

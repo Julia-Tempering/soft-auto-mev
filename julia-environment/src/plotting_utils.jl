@@ -1,7 +1,7 @@
 # run this once when opening a new terminal
-#using Pkg
-#Pkg.activate("julia-environment")
-#Pkg.update()
+using Pkg
+Pkg.activate("julia-environment")
+Pkg.update()
 include("utils.jl")
 
 
@@ -72,6 +72,11 @@ function prepare_df(df::DataFrame)
 	df[idxs, :model] .= "earning"
 	idxs = @. df.logstep_jitter == "adapt"
 	df[idxs, :logstep_jitter] .= "auto"
+    df.energy_jump_dist = ifelse.(
+		map(sampler -> sampler in ["NUTS"], df.sampler_type), # NUTS returns total energy jump dist
+		df.energy_jump_dist ./ (8000 * 2 .^ df.n_rounds), # first round has 8000 samples
+		df.energy_jump_dist
+	)
 	df.miness_per_sec = df.miness ./ df.time
 	df.miness_per_step = df.miness ./ df.n_steps
 	df.cost = ifelse.(
@@ -224,14 +229,14 @@ function within_sampler_comparison_plots_model(experiment::String)
             legend=:bottomright, xrotation = 20, yaxis=:log10, color=:auto, yticks = yticks)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_cost_comparison.png"))
 
-        yticks = 10.0 .^ LinRange(-2, 2, 5)
+        yticks = 10.0 .^ LinRange(0, 4, 5)
         @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler, ylabel="minESS / sec", 
             legend=:bottomright, xrotation = 20, yaxis=:log10, color=:auto, yticks = yticks)
         savefig(joinpath(plots_path,"$(my_sampler)_miness_sec_comparison.png"))
 
         yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]
-        @df df StatsPlots.groupedboxplot(:model, :energy_jump_dist, group=:sampler, ylabel="Energy Jump Distance", 
-            legend=:bottomright, xrotation = 20, color=:auto, yticks = yticks)
+        @df df StatsPlots.groupedboxplot(:model, :energy_jump_dist, group=:sampler, ylabel="Average Energy Jump Distance", 
+            legend=:topleft, xrotation = 20, color=:auto, yticks = yticks, ylim = (0.05, 0.3))
         savefig(joinpath(plots_path,"$(my_sampler)_energy_jump_comparison.png"))
     end
 end
@@ -266,7 +271,7 @@ function jitter_comparison_plots_model(experiment::String)
 
         yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]
         @df df StatsPlots.groupedboxplot(:model, :energy_jump_dist, group=:logstep_jitter, xlabel="Model", 
-        ylabel="Energy Jump Distance", legend=:bottomleft, color=:auto, yticks = yticks)
+        ylabel="Average Energy Jump Distance", legend=:topleft, color=:auto, yticks = yticks, ylim = (0.05, 0.3))
         savefig(joinpath(plots_path,"$(my_sampler)_energy_jump_jitter_comparison.png"))
     end
 end
@@ -281,25 +286,25 @@ function all_comparison_plots_model(experiment::String)
     sort!(df, :model) # ensure ordering on x-axis
     # Create the grouped boxplot for minESS/sec
     @df df StatsPlots.groupedboxplot(:model, :miness_per_sec, group=:sampler_type, xlabel="Model", ylabel="minESS / sec", 
-        legend=:bottomright, color=:auto, yaxis=:log10)
+        legend=:bottomleft, color=:auto, yaxis=:log10)
     savefig(joinpath(plots_path,"miness_per_sec_comparison.png"))
 
     # now create the minESS/cost plot
     @df df StatsPlots.groupedboxplot(:model, :miness_per_cost, group=:sampler_type, xlabel="Model", ylabel="minESS / cost", 
-        legend=:bottomright, color=:auto, yaxis=:log10)
+        legend=:bottomleft, color=:auto, yaxis=:log10)
     savefig(joinpath(plots_path,"miness_per_cost_comparison.png"))
 
     # now create the energy jump plot
     @df df StatsPlots.groupedboxplot(:model, :energy_jump_dist, group=:sampler_type, xlabel="Model", 
-    ylabel="Energy Jump Distance", legend=:bottomright, color=:auto)
+    ylabel="Average Energy Jump Distance", legend=:topleft, color=:auto, ylim= (-0.03,0.8))
     savefig(joinpath(plots_path,"energy_jump_comparison.png"))
 
     # now the leapfrog comparison plot
-    df = filter(row -> !(row.sampler_type in ["autoRWMH", "HitAndRunSlicer"]), df)
-    df.leapfrog_per_ess = df.n_steps ./ df.miness
-    @df df StatsPlots.groupedboxplot(:model, :leapfrog_per_ess, group=:sampler_type, xlabel="Model", ylabel="Number of Leapfrogs per minESS", 
-        legend=:topleft, color=:auto, yaxis=:log10)
-    savefig(joinpath(plots_path,"num_leapfrog_comparison.png"))
+    #df = filter(row -> !(row.sampler_type in ["autoRWMH", "HitAndRunSlicer"]), df)
+    #df.leapfrog_per_ess = df.n_steps ./ df.miness
+    #@df df StatsPlots.groupedboxplot(:model, :leapfrog_per_ess, group=:sampler_type, xlabel="Model", ylabel="Number of Leapfrogs per minESS", 
+    #    legend=:topleft, color=:auto, yaxis=:log10)
+    #savefig(joinpath(plots_path,"num_leapfrog_comparison.png"))
 end
 
 
@@ -393,10 +398,10 @@ function acceptance_prob_plots_model(experiment::String)
 	foreach(loop_samplers) do samplers
 		df2 = filter(row -> (row.sampler_type in samplers), df)
         df2.sampler_type = CategoricalArray(df2.sampler_type, ordered=true, levels=samplers)
-        yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
+        yticks = [0,0.2,0.4,0.6,0.8,1.0]
 
 		@df df2 StatsPlots.groupedboxplot(:model, :acceptance_prob, group = :sampler_type, 
-			ylabel = "Average Energy Jump Distance", legend = :topright, color = :auto, yticks = yticks, 
+			ylabel = "Average acceptance probability", legend = :topright, color = :auto, yticks = yticks, 
             xrotation = 15)
 		savefig(joinpath(plots_path, "$(samplers[1])_acceptance_prob.png"))
     end

@@ -1,6 +1,7 @@
-#using Pkg
-#Pkg.activate("julia-environment") 
-#include(joinpath("../julia-environment/src/utils.jl")) 
+using Pkg
+Pkg.activate("julia-environment") 
+Pkg.update()
+include(joinpath("../julia-environment/src/utils.jl")) 
 using CairoMakie
 using StatsPlots
 
@@ -24,7 +25,7 @@ function pairplot(df; title="Pairplot")
 		p_mat[i,j] = i>=j ? (label = :°, blank = false) : (label = :_, blank = true)
         if i>j
             subplot = StatsPlots.scatter(df[:,i], df[:,j], legend = false,markersize=1/cols, 
-			alpha=0.02, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
+			alpha=0.01, markerstrokecolor=nothing, grid=nothing, markerstrokealpha=0.0, 
 			tickfontsize=round(32/cols), tick_direction=:in, 
 			xrot=45,showaxis=(i==cols ? (j==1 ? true : :x) : (j==1 ? :y : false)),
 			xticks=(i==cols ? :auto : nothing), yticks=(j==1 ? :auto : nothing))
@@ -53,7 +54,7 @@ function get_samples(explorer)
         pt = pigeons(
         target     = stan_logpotential("mRNA"),
         seed       = 2,
-        n_rounds   = 18,
+        n_rounds   = 17,
         n_chains   = 1, 
         record     = [record_default(); Pigeons.traces; online],
         explorer   = make_explorer(explorer),
@@ -71,7 +72,7 @@ function get_samples(explorer)
 end
 
 # draw pairplot
-for explorer in ["NUTS"] # "autoRWMH", "HitAndRunSlicer", "autoHMC", "autoMALA", 
+for explorer in ["autoRWMH", "HitAndRunSlicer", "autoHMC", "autoMALA", "NUTS"]
     df = get_samples(explorer)
     fig = pairplot(df)
     # fig = StatsPlots.cornerplot(df, compact = true)
