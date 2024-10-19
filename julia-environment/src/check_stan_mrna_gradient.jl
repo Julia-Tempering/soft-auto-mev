@@ -4,13 +4,20 @@ include("utils.jl")
 using FiniteDiff
 using LogDensityProblems
 using LinearAlgebra
+using Bijectors
 
 # get samples from the prior
-function get_prior_samples(;n = 2^15, rng = SplittableRandom(1))
-    prior_dist = product_distribution(
-        [Uniform(-2,1), Uniform(-5,5), Uniform(-5,5), Uniform(-5,5), Uniform(-2,2)]
-    )
-    [rand(rng, prior_dist) for _ in 1:n]
+function make_prior_dist(;only_marginals=false, constrained=false)
+    marginals = [Uniform(-2,1), Uniform(-5,5), Uniform(-5,5), Uniform(-5,5), Uniform(-2,2)]
+    return if only_marginals
+        marginals
+    else
+        product_distribution(constrained ? marginals : transformed.(marginals))
+    end
+end
+function get_prior_samples_unconstrained(;n = 2^15, rng = SplittableRandom(1))
+    prior_dist_unconstrained = make_prior_dist()
+    [rand(rng, prior_dist_unconstrained) for _ in 1:n]
 end
 
 # get samples from the posterior
@@ -23,8 +30,9 @@ function get_posterior_samples(target)
         n_rounds = 15,
         record = [traces]
     )
+    b  = Bijectors.bijector(make_prior_dist(constrained=true))
     sa = sample_array(pt)[:,1:5,1]
-    collect(copy(c) for c in eachrow(sa)) # use vector of vectors representation for faster iteration
+    [b(c) for c in eachrow(sa)] # return vector of unconstrained samples
 end
 function make_stan_grad(target)
     buff_ad = Pigeons.BufferedAD(target, Pigeons.buffers(), Ref(0.0), Ref{Cstring}())
@@ -34,7 +42,9 @@ make_fd_grad(target::StanLogPotential) =
     (x) -> FiniteDiff.finite_difference_gradient(
         Base.Fix1(LogDensityProblems.logdensity, target), x, Val{:central}
     )
-function test_grad(target,samples)
+# compute mean relative error
+function test_grad(target; prior=true)
+    samples = prior ? get_prior_samples_unconstrained() : get_posterior_samples(target)
     fd_grad = make_fd_grad(target)
     stan_grad = make_stan_grad(target)
     mean(samples) do x
@@ -44,5 +54,5 @@ end
 
 # run
 target = stan_logpotential("mrna")
-test_grad(target, get_posterior_samples(target)) # 4.0421319771296056e-10
-test_grad(target, get_prior_samples()) # 2.1281850912516644e-10
+test_grad(target, prior = false) # posterior => err ~ 3.090724925250216e-7
+test_grad(target) # prior => err ~ 4.877355846963999e-6
