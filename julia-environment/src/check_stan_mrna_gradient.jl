@@ -53,6 +53,6 @@ function test_grad(target; prior=true)
 end
 
 # run
-target = stan_logpotential("mrna")
+target = stan_logpotential("mRNA")
 test_grad(target, prior = false) # posterior => err ~ 3.090724925250216e-7
 test_grad(target) # prior => err ~ 4.877355846963999e-6
