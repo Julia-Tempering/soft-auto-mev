@@ -54,5 +54,21 @@ end
 
 # run
 target = stan_logpotential("mRNA")
-test_grad(target, prior = false) # posterior => err ~ 3.090724925250216e-7
-test_grad(target) # prior => err ~ 4.877355846963999e-6
+@show test_grad(target, prior = false) # posterior => err ~ 3.090724925250216e-7
+@show test_grad(target) # prior => err ~ 4.877355846963999e-6
+
+# plot
+using CairoMakie, PairPlots
+
+target = stan_logpotential("mRNA")
+pt = pigeons(
+    target = target,
+    reference = DistributionLogPotential(make_prior_dist(;only_marginals=false, constrained=false)),
+    seed = 1,
+    explorer = SimpleAHMC(),
+    n_chains = 12,
+    n_rounds = 15,
+    record = [traces]
+)
+ch = Chains(pt)[:,1:5,1]
+pairplot(ch)
