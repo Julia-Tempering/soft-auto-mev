@@ -3,7 +3,7 @@ params.dryRun = false
 
 def variables = [
     seed: (1..30),
-    model: ["horseshoe_logit", "mRNA", "banana(4,0.3)", "funnel(4,0.3)", "funnel", "banana"],
+    model: ["horseshoe_logit", "mRNA", "banana(4,0.3)", "funnel(4,0.3)", "funnel(4,1)", "banana(4,1)"],
     sampler_type: ["HMC0.25", "MALA0.25", "RWMH0.25", "HMC0.1", "MALA0.1", "RWMH0.1", "HMC10.0", "MALA10.0", "RWMH10.0", 
     "HMC4.0", "MALA4.0", "RWMH4.0","HMC", "MALA", "RWMH", "SimpleAHMC", "SimpleRWMH"], 
     selector: ["inverted"],

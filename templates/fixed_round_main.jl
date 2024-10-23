@@ -207,11 +207,18 @@ function main()
 	samples, stats_df = if miness_threshold == 1 
         pt_sample_from_model(model, target, seed, explorer, miness_threshold)
     else
-        pt_sample_from_model_fixed(model, target, seed, explorer, 17)
+        pt_sample_from_model_fixed(model, target, seed, explorer, 19)
     end
 
 	isdir("csvs") || mkdir("csvs")
 	CSV.write("csvs/summary.csv", stats_df)
+end
+
+function Pigeons.initialization(target::StanLogPotential{StanModel,String,Pigeons.Immutable{String},Nothing}, 
+    rng::AbstractRNG, ::Int64)
+    d_unc = BridgeStan.param_unc_num(target.model) # number of unconstrained parameters
+    init = randn(rng, d_unc)
+    return Pigeons.StanState(init, StanRNG(target.model, rand(rng, UInt32)))
 end
 
 main()

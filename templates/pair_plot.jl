@@ -9,7 +9,7 @@ function make_explorer(explorer)
     if explorer == "HitAndRunSlicer"
         HitAndRunSlicer()
     elseif explorer == "autoRWMH"
-        SimpleRWMH(step_jitter = autoRWMH.StepJitter(dist = Normal(0.0, 3.0),adapt_strategy = autoRWMH.FixedStepJitter()))
+        SimpleRWMH()
     elseif explorer == "autoMALA"
         SimpleAHMC(n_refresh=1, int_time = autoHMC.FixedIntegrationTime())
     else
@@ -42,6 +42,13 @@ function pairplot(df; title="Pairplot")
     return StatsPlots.plot(plots..., layout=p_mat, plot_titlevspan=0.05) #plot_title=title, 
 end
 
+function Pigeons.initialization(target::StanLogPotential{StanModel,String,Pigeons.Immutable{String},Nothing}, 
+    rng::AbstractRNG, ::Int64)
+    d_unc = BridgeStan.param_unc_num(target.model) # number of unconstrained parameters
+    init = randn(rng, d_unc)
+    return Pigeons.StanState(init, StanRNG(target.model, rand(rng, UInt32)))
+end
+
 function get_samples(explorer)
     if explorer == "NUTS"
         my_data = stan_data("mRNA")
@@ -53,7 +60,7 @@ function get_samples(explorer)
     else
         pt = pigeons(
         target     = stan_logpotential("mRNA"),
-        seed       = 2,
+        seed       = 3,
         n_rounds   = 17,
         n_chains   = 1, 
         record     = [record_default(); Pigeons.traces; online],

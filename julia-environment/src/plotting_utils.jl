@@ -341,19 +341,19 @@ function non_auto_plots_model(experiment::String)
 		savefig(joinpath(plots_path, "$(samplers[1])_miness_per_sec.png"))
 
 		# now create the minESS/cost plot
-        yticks = 10.0 .^ LinRange(-2, 2, 5)
+        yticks = 10.0 .^ LinRange(-10, -2, 9)
 		@df df2 StatsPlots.groupedboxplot(:model, :miness_per_cost, group = :sampler_type, #xlabel = "Model", 
         ylabel = "minESS / cost", legend = :bottomleft, color = :auto, yaxis = :log10, yticks = yticks,
         ylim = (0.9 * minimum(df2.miness_per_cost), 1.3 * maximum(df2.miness_per_cost)),
         xrotation = 15)
         # Overlay the number of points as text
         #annotate_model_points!(unique_models, samplers, df2, maximum(df2.miness_per_cost), model_mapping, sampler_offset)
-		savefig(joinpath(plots_path, "$(samplers[1])_miness_per_cost_.png"))
+		savefig(joinpath(plots_path, "$(samplers[1])_miness_per_cost.png"))
 
 		# now create the energy jump distance
-        yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8]
+        yticks = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9, 1.0]
 		@df df2 StatsPlots.groupedboxplot(:model, :energy_jump_dist, group = :sampler_type, #xlabel = "Model",
-			ylabel = "Average Energy Jump Distance", legend = :topright, color = :auto, yticks = yticks, ylim = (-0.03, 0.3),
+			ylabel = "Average Energy Jump Distance", legend = :topleft, color = :auto, yticks = yticks, ylim = (-0.03, 1.1),
             xrotation = 15)
         #annotate_model_points!(unique_models, samplers, df2, maximum(df2.energy_jump_dist), model_mapping, sampler_offset)
 		savefig(joinpath(plots_path, "$(samplers[1])_energy_jump_dist.png"))
@@ -402,7 +402,7 @@ function acceptance_prob_plots_model(experiment::String)
 
 		@df df2 StatsPlots.groupedboxplot(:model, :acceptance_prob, group = :sampler_type, 
 			ylabel = "Average acceptance probability", legend = :topright, color = :auto, yticks = yticks, 
-            xrotation = 15)
+            xrotation = 15, ylim = (-0.03, 1.5))
 		savefig(joinpath(plots_path, "$(samplers[1])_acceptance_prob.png"))
     end
 end

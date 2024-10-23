@@ -226,9 +226,9 @@ function main()
     else
         make_explorer(explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}")
     end
-    target = if model == "funnel"
+    target = if model == "funnel(4,1)"
             Pigeons.stan_funnel(3, 1.0)
-        elseif model == "banana"
+        elseif model == "banana(4,1)"
             Pigeons.stan_banana(3, 1.0)
         elseif model == "funnel(4,0.3)"
             Pigeons.stan_funnel(3, 0.3)
@@ -244,6 +244,13 @@ function main()
 
 	isdir("csvs") || mkdir("csvs")
 	CSV.write("csvs/summary.csv", stats_df)
+end
+
+function Pigeons.initialization(target::StanLogPotential{StanModel,String,Pigeons.Immutable{String},Nothing}, 
+    rng::AbstractRNG, ::Int64)
+    d_unc = BridgeStan.param_unc_num(target.model) # number of unconstrained parameters
+    init = randn(rng, d_unc)
+    return Pigeons.StanState(init, StanRNG(target.model, rand(rng, UInt32)))
 end
 
 main()
