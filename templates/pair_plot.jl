@@ -11,9 +11,9 @@ function make_explorer(explorer)
     elseif explorer == "autoRWMH"
         SimpleRWMH()
     elseif explorer == "autoMALA"
-        SimpleAHMC(n_refresh=1, int_time = autoHMC.FixedIntegrationTime())
+        SimpleAHMC(n_refresh=1, int_time = AutoStep.FixedIntegrationTime())
     else
-        SimpleAHMC(n_refresh=1, int_time = autoHMC.AdaptiveRandomIntegrationTime())
+        SimpleAHMC(n_refresh=1, int_time = AutoStep.AdaptiveRandomIntegrationTime())
     end
 end
 

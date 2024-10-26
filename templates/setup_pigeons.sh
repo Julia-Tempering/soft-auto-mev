@@ -3,17 +3,14 @@
 # if inside the apptainer container, start ssh agent and add keys
 if [ -v APPTAINER_NAME ] ; then
     echo "initializing ssh agent and adding deploy keys"
-    chmod 600 $baseDir/keys/id_autoHMC
-    chmod 600 $baseDir/keys/id_autoRWMH
+    chmod 600 $baseDir/keys/id_AutoStep
     eval `ssh-agent -s`
-    ssh-add $baseDir/keys/id_autoHMC
-    ssh-add $baseDir/keys/id_autoRWMH
+    ssh-add $baseDir/keys/id_AutoStep
 fi
 
 # manually clone repos in order to be able to use different id keys
 rm -rf $baseDir/work/repos/
-GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoHMC -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoHMC.git $baseDir/work/repos/autoHMC
-GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_autoRWMH -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/autoRWMH.git $baseDir/work/repos/autoRWMH
+GIT_SSH_COMMAND='ssh -i $baseDir/keys/id_AutoStep -o IdentitiesOnly=yes' git clone git@github.com:Julia-Tempering/AutoStep.git $baseDir/work/repos/AutoStep
 
 # Create Julia script that activates the julia environment and adds the pkg repos above
 # NB: need to do this here so that nextflow can fill in julia_env and baseDir
@@ -26,8 +23,7 @@ cat <<EOF > temp.jl
     # need to install them jointly otherwise Julia complains about unregistered pkgs
     Pkg.add([ 
         Pkg.PackageSpec(name="Pigeons", rev="main"),
-        Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoHMC")),
-        Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "autoRWMH"))
+        Pkg.PackageSpec(path=joinpath("$baseDir", "work", "repos", "AutoStep"))
     ])
     Pkg.update()
     Pkg.instantiate()

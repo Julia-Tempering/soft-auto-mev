@@ -112,116 +112,116 @@ function main()
         SimpleRWMH(
             step_size = step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoRWMH.MHNonAdaptiveSelector(),
-            step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter())
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter())
         )
     elseif explorer_type == "MALA"
         SimpleAHMC(
             step_size = step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.FixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.FixedIntegrationTime()
         )
     elseif explorer_type == "HMC"
         SimpleAHMC(
             step_size = step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.AdaptiveFixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.AdaptiveFixedIntegrationTime()
         )
     elseif explorer_type == "RWMH0.1"
         SimpleRWMH(
             step_size = 0.1 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoRWMH.MHNonAdaptiveSelector(),
-            step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter())
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter())
         )
     elseif explorer_type == "MALA0.1"
         SimpleAHMC(
             step_size = 0.1 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.FixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.FixedIntegrationTime()
         )
     elseif explorer_type == "HMC0.1"
         SimpleAHMC(
             step_size = 0.1 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.AdaptiveFixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.AdaptiveFixedIntegrationTime()
         )
     elseif explorer_type == "RWMH10.0"
         SimpleRWMH(
             step_size = 10.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoRWMH.MHNonAdaptiveSelector(),
-            step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter())
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter())
         )
     elseif explorer_type == "MALA10.0"
         SimpleAHMC(
             step_size = 10.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.FixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.FixedIntegrationTime()
         )
     elseif explorer_type == "HMC10.0"
         SimpleAHMC(
             step_size = 10.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.AdaptiveFixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.AdaptiveFixedIntegrationTime()
         )
     elseif explorer_type == "RWMH4.0"
         SimpleRWMH(
             step_size = 4.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoRWMH.MHNonAdaptiveSelector(),
-            step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter())
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter())
         )
     elseif explorer_type == "MALA4.0"
         SimpleAHMC(
             step_size = 4.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.FixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.FixedIntegrationTime()
         )
     elseif explorer_type == "HMC4.0"
         SimpleAHMC(
             step_size = 4.0 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.AdaptiveFixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.AdaptiveFixedIntegrationTime()
         )
     elseif explorer_type == "RWMH0.25"
         SimpleRWMH(
             step_size = 0.25 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoRWMH.MHNonAdaptiveSelector(),
-            step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter())
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter())
         )
     elseif explorer_type == "MALA0.25"
         SimpleAHMC(
             step_size = 0.25 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.FixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.FixedIntegrationTime()
         )
     elseif explorer_type == "HMC0.25"
         SimpleAHMC(
             step_size = 0.25 * step_size, 
             estimated_target_std_deviations = estimated_target_std_deviations,
-            step_size_selector = autoHMC.AMNonAdaptiveSelector(),
-            step_jitter = autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()),
-            int_time = autoHMC.AdaptiveFixedIntegrationTime()
+            step_size_selector = AutoStep.ASNonAdaptiveSelector(),
+            step_jitter = AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()),
+            int_time = AutoStep.AdaptiveFixedIntegrationTime()
         )
     else
         make_explorer(explorer_type, "${arg.selector}", "${arg.int_time}", "${arg.logstep_jitter}")

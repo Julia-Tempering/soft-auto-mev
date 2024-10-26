@@ -5,7 +5,7 @@ using CairoMakie
 using LaTeXStrings
 
 function get_selector(selector)
-    selector = selector == "autoRWMH_inv" ? autoRWMH.MHSelectorInverted() : autoRWMH.MHSelector()
+    selector = selector == "autoRWMH_inv" ? AutoStep.ASSelectorInverted() : AutoStep.ASSelector()
     return selector
 end
 
@@ -17,8 +17,8 @@ function get_sample_scatter(selector, ax)
         n_chains   = 1, 
         record     = [record_default(); Pigeons.traces; online],
         explorer   = SimpleRWMH(step_size_selector = get_selector(selector),
-                                step_jitter = autoRWMH.StepJitter(dist = Dirac(0.0),
-                                adapt_strategy = autoRWMH.FixedStepJitter())),
+                                step_jitter = AutoStep.StepJitter(dist = Dirac(0.0),
+                                adapt_strategy = AutoStep.FixedStepJitter())),
         show_report = true
     )
     

@@ -298,13 +298,6 @@ function all_comparison_plots_model(experiment::String)
     @df df StatsPlots.groupedboxplot(:model, :energy_jump_dist, group=:sampler_type, xlabel="Model", 
     ylabel="Average Energy Jump Distance", legend=:topleft, color=:auto, ylim= (-0.03,0.8))
     savefig(joinpath(plots_path,"energy_jump_comparison.png"))
-
-    # now the leapfrog comparison plot
-    #df = filter(row -> !(row.sampler_type in ["autoRWMH", "HitAndRunSlicer"]), df)
-    #df.leapfrog_per_ess = df.n_steps ./ df.miness
-    #@df df StatsPlots.groupedboxplot(:model, :leapfrog_per_ess, group=:sampler_type, xlabel="Model", ylabel="Number of Leapfrogs per minESS", 
-    #    legend=:topleft, color=:auto, yaxis=:log10)
-    #savefig(joinpath(plots_path,"num_leapfrog_comparison.png"))
 end
 
 

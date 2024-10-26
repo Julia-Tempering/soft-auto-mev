@@ -14,8 +14,7 @@ using Turing
 using ReverseDiff
 
 using Pigeons
-using autoHMC
-using autoRWMH
+using AutoStep
 
 ###############################################################################
 # loading data
@@ -150,39 +149,39 @@ function make_explorer(sampler_str, selector_str, int_time_str, jitter_str)
         HitAndRunSlicer(n_refresh=1)
     elseif sampler_str == "SimpleAHMC"                                # we handle autoMALA as special case of SimpleAHMC
 	selector = if selector_str == "inverted"
-	        autoHMC.AMSelectorInverted()
+	        AutoStep.ASSelectorInverted()
         elseif selector_str == "non_adaptive"
-            autoHMC.AMNonAdaptiveSelector()
+            AutoStep.ASNonAdaptiveSelector()
         else 
-            autoHMC.AMSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
+            AutoStep.ASSelectorLegacy() # legacy matches the Pigeons.AutoMALA behavior
         end
 	int_time = if int_time_str == "single_step"
-            autoHMC.FixedIntegrationTime()                            # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see autoHMC tests
+            AutoStep.FixedIntegrationTime()                            # Pigeons.AutoMALA is recovered because additionally jitter is Dirac and selector is legacy, see AutoStep tests
         elseif int_time_str == "fixed"
-            autoHMC.AdaptiveFixedIntegrationTime()
+            AutoStep.AdaptiveFixedIntegrationTime()
         else
-            autoHMC.AdaptiveRandomIntegrationTime()
+            AutoStep.AdaptiveRandomIntegrationTime()
         end
         step_jitter = selector_str == "non_adaptive" ? # do not use step jitter if we want to recover HMC or MALA
-            autoHMC.StepJitter(dist = Dirac(0.0), adapt_strategy = autoHMC.FixedStepJitter()) : autoHMC.StepJitter(
+            AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()) : AutoStep.StepJitter(
             dist = jitter_dist,
-            adapt_strategy = jitter_str == "adapt" ? autoHMC.AdaptativeStepJitter() : autoHMC.FixedStepJitter()
+            adapt_strategy = jitter_str == "adapt" ? AutoStep.AdaptativeStepJitter() : AutoStep.FixedStepJitter()
         )
 		SimpleAHMC(
 			n_refresh=1, int_time = int_time, step_size_selector = selector, step_jitter = step_jitter
         )
 	elseif sampler_str == "SimpleRWMH"
 	    selector = if selector_str == "inverted"
-	            autoRWMH.MHSelectorInverted()
+                AutoStep.ASSelectorInverted()
             elseif sampler_str == "non_adaptive"
-                autoRWMH.MHNonAdaptiveSelector()
+                AutoStep.ASNonAdaptiveSelector()
             else 
-                autoRWMH.MHSelector()
+                AutoStep.ASSelector()
             end
         step_jitter = selector_str == "non_adaptive" ? # do not use step jitter if we want to recover RWMH
-            autoRWMH.StepJitter(dist = Dirac(0.0), adapt_strategy = autoRWMH.FixedStepJitter()) : autoRWMH.StepJitter(
+            AutoStep.StepJitter(dist = Dirac(0.0), adapt_strategy = AutoStep.FixedStepJitter()) : AutoStep.StepJitter(
             dist = jitter_dist,
-            adapt_strategy = jitter_str == "adapt" ? autoRWMH.AdaptativeStepJitter() : autoRWMH.FixedStepJitter()
+            adapt_strategy = jitter_str == "adapt" ? AutoStep.AdaptativeStepJitter() : AutoStep.FixedStepJitter()
         )
 		SimpleRWMH(n_refresh=1, step_size_selector = selector, step_jitter = step_jitter)
 	else
@@ -246,11 +245,6 @@ function pt_sample_from_model(model, target, seed, explorer, miness_threshold; m
     else
         pt.shared.explorer.step_size
     end
-    energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
-        autoHMC.energy_jump_distance
-    else
-        autoRWMH.energy_jump_distance
-    end
     energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
     acceptance_prob = explorer isa SliceSampler ? zero(miness) : 
@@ -300,11 +294,6 @@ function pt_sample_from_model_fixed(model, target, seed, explorer, num_rounds)
         pt.shared.explorer.slicer.w
     else
         pt.shared.explorer.step_size
-    end
-    energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
-        autoHMC.energy_jump_distance
-    else
-        autoRWMH.energy_jump_distance
     end
     energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
     time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
@@ -370,11 +359,6 @@ function pt_sample_from_model_round_by_round(model, target, seed, explorer, mine
             pt.shared.explorer.slicer.w
         else
             pt.shared.explorer.step_size
-        end
-        energy_jump_distance = if pt.shared.explorer isa SimpleAHMC
-            autoHMC.energy_jump_distance
-        else
-            autoRWMH.energy_jump_distance
         end
         energy_jump_dist = first(Pigeons.recorder_values(pt, :energy_jump_distance))
         time = sum(pt.shared.reports.summary.last_round_max_time) # despite name, it is a vector of time elapsed for all rounds
